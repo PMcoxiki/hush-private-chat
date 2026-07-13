@@ -1,0 +1,4 @@
+* @maintainers
+/app/api/ @security-reviewers
+/db/ @security-reviewers
+/SECURITY.md @security-reviewers
