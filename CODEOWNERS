@@ -1,4 +1,6 @@
 * @maintainers
 /app/api/ @security-reviewers
 /db/ @security-reviewers
+/ios/ @security-reviewers
+/.github/workflows/ios-unsigned.yml @security-reviewers
 /SECURITY.md @security-reviewers

@@ -34,3 +34,7 @@ authentication changes require a security reviewer.
 For native packaging, open `ios/Hush.xcodeproj` with Xcode 16+, choose an Apple
 Development team, then Archive and export using Ad Hoc, Development, or
 TestFlight distribution.
+
+Without a local Xcode installation, push the project to a private GitHub repo
+and run the included `build unsigned iOS package` workflow. It produces an
+unsigned IPA suitable for re-signing through AltStore or Sideloadly.

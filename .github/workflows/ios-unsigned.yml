@@ -1,0 +1,46 @@
+name: build unsigned iOS package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-unsigned.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  unsigned-ipa:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+      - name: Build unsigned device app
+        run: |
+          xcodebuild \
+            -project ios/Hush.xcodeproj \
+            -scheme Hush \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+      - name: Package IPA
+        run: |
+          mkdir -p build/package/Payload
+          cp -R build/ios/Build/Products/Release-iphoneos/ChatGPT.app build/package/Payload/
+          cd build/package
+          zip -qry ../ChatGPT-unsigned.ipa Payload
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatGPT-unsigned-ipa
+          path: build/ChatGPT-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
