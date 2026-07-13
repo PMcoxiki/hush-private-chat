@@ -23,8 +23,9 @@ verification, or an independently audited protocol.
 
 ## Development
 
-Use short-lived branches and Conventional Commits. Crypto, storage, and
-authentication changes require a security reviewer.
+Use short-lived branches and Conventional Commits. Crypto and storage changes
+require a security reviewer. The app intentionally has no ChatGPT/OpenAI login;
+the shared room secret is the only private-conversation gate.
 
 - `npm run dev` — local development
 - `npm run lint` — static checks
