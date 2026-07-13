@@ -6,7 +6,9 @@ The browser encrypts message content before transport. D1 stores only a room
 identifier, sender device identifier, AES-GCM ciphertext, IV, and timestamp.
 The server never receives the shared secret or plaintext.
 
-This prototype uses a password-derived room key. Production iOS should replace
+This prototype derives 512 bits from the shared secret with 600,000-round
+PBKDF2-SHA-256, then separates the AES key material from the opaque room id.
+Production iOS should replace
 that with audited Signal Protocol primitives, per-device identity keys stored in
 Keychain/Secure Enclave, Double Ratchet sessions, device verification, key
 rotation, replay protection, and push notifications containing no plaintext.
@@ -14,7 +16,10 @@ rotation, replay protection, and push notifications containing no plaintext.
 ## Components
 
 - `app/page.tsx`: cover AI experience, covert unlock gesture, encrypted room UI.
+- `app/lib/chat-crypto.ts`: client-only key derivation and AES-GCM operations.
 - `app/api/messages/route.ts`: opaque ciphertext relay and durable history.
+- `app/install.mobileconfig/route.ts`: removable iOS Web Clip installer.
+- `ios/`: app-bound SwiftUI wrapper prepared for Apple signing.
 - `db/schema.ts`: persistence contract and timeline index.
 - Cloudflare D1: encrypted message envelope storage.
 

@@ -13,11 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "私人 AI 顾问",
-  description: "一个低调、私密的端到端加密双人对话空间。",
+  title: "ChatGPT",
+  description: "ChatGPT 移动对话助手。",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ChatGPT",
+  },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/app-icon.png",
+    shortcut: "/app-icon.png",
+    apple: "/apple-touch-icon.png",
   },
 };
 
