@@ -6,6 +6,7 @@ stage=$(mktemp -d "${TMPDIR:-/tmp}/hush-release.XXXXXX")
 trap 'rm -rf "$stage"' EXIT HUP INT TERM
 
 cd "$root"
+npm run verify:install-target
 npm run build:fallback
 
 cp distribution/ChatGPT.mobileconfig "$stage/ChatGPT.mobileconfig"

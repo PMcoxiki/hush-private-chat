@@ -39,8 +39,12 @@ the shared room secret is the only private-conversation gate.
 - `npm run lint` — static checks
 - `npm test` — production build and product invariants
 - `npm run build:fallback` — create the GitHub Pages artifact
+- `npm run verify:install-target` — refuse a release when the iPhone target or
+  PWA manifest is unavailable
+- `npm run verify:relay` — verify two independent clients can decrypt the same
+  retained ciphertext message through a live relay
 - `npm run package:release` — rebuild the friend installer, native source zip,
-  and SHA-256 checksums from tracked release sources
+  and SHA-256 checksums only after the public install target passes verification
 - `npm run db:generate` — versioned D1 migration
 
 For native packaging, open `ios/Hush.xcodeproj` with Xcode 16+, choose an Apple

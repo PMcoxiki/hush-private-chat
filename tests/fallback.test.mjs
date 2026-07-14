@@ -46,7 +46,7 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
   assert.match(workflow, /deploy-pages@v4/);
 });
 
-test("all iPhone install surfaces target the accessible fallback deployment", async () => {
+test("all iPhone install surfaces target the configured fallback deployment", async () => {
   const deploymentUrl = "https://pmcoxiki.github.io/hush-private-chat/";
   const [nativeApp, nativePolicy, profileRoute, profile, instructions] = await Promise.all([
     readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),
@@ -62,4 +62,18 @@ test("all iPhone install surfaces target the accessible fallback deployment", as
   assert.match(profile, new RegExp(deploymentUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(instructions, new RegExp(deploymentUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(`${nativeApp}${nativePolicy}${profileRoute}${profile}${instructions}`, /hush-private-ai\.coxiki\.chatgpt\.site/);
+});
+
+test("release packaging refuses an unavailable iPhone target", async () => {
+  const [packageScript, targetCheck, relayCheck] = await Promise.all([
+    readFile(new URL("scripts/package-release.sh", root), "utf8"),
+    readFile(new URL("scripts/verify-install-target.mjs", root), "utf8"),
+    readFile(new URL("scripts/verify-retained-relay.mjs", root), "utf8"),
+  ]);
+
+  assert.match(packageScript, /npm run verify:install-target/);
+  assert.match(targetCheck, /pageResponse\.ok/);
+  assert.match(targetCheck, /manifest\.display !== "standalone"/);
+  assert.match(relayCheck, /retainedHistory: true/);
+  assert.match(relayCheck, /plaintextInEnvelope: false/);
 });
