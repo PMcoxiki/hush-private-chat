@@ -25,6 +25,9 @@ server never receives the shared secret or message plaintext. Read
 `SECURITY.md`: this prototype does not yet provide forward secrecy, device
 verification, or an independently audited protocol.
 
+The architecture and repository practices are mapped to concrete upstream
+projects in `docs/github-case-studies.md`.
+
 ## Development
 
 Use short-lived branches and Conventional Commits. Crypto and storage changes
