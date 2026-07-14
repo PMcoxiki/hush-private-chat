@@ -15,6 +15,5 @@
   <key>UIApplicationSupportsIndirectInputEvents</key><true/>
   <key>UILaunchScreen</key><dict><key>UIColorName</key><string>LaunchBackground</string></dict>
   <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
-  <key>WKAppBoundDomains</key><array><string>pmcoxiki.github.io</string></array>
 </dict>
 </plist>

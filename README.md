@@ -10,7 +10,8 @@ secret gate.
 - Static fallback PWA in `fallback/` that can be hosted on GitHub Pages without
   the Sites domain or a ChatGPT/OpenAI account.
 - Downloadable `install.mobileconfig` Web Clip installer.
-- Native SwiftUI/WKWebView Xcode project in `ios/` for signed IPA builds.
+- Native SwiftUI/WKWebView Xcode project in `ios/` with the fallback client
+  embedded for signed IPA builds that do not depend on web hosting at launch.
 - Browser-side AES-256-GCM encryption and a ciphertext-only D1 timeline.
 - Optional MQTT relay fallback with retained ciphertext messages and automatic
   failover between two public WebSocket relays.
@@ -39,10 +40,13 @@ the shared room secret is the only private-conversation gate.
 - `npm run lint` — static checks
 - `npm test` — production build and product invariants
 - `npm run build:fallback` — create the GitHub Pages artifact
+- `npm run sync:ios-webapp` — rebuild and embed the fallback inside the Xcode app
 - `npm run verify:install-target` — refuse a release when the iPhone target or
   PWA manifest is unavailable
 - `npm run verify:relay` — verify two independent clients can decrypt the same
   retained ciphertext message through a live relay
+- `npm run package:ios-source` — rebuild the self-contained Xcode source archive
+  even before a public Web Clip target is available
 - `npm run package:release` — rebuild the friend installer, native source zip,
   and SHA-256 checksums only after the public install target passes verification
 - `npm run db:generate` — versioned D1 migration

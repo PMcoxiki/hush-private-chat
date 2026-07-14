@@ -20,7 +20,7 @@ cp -R outputs/github-pages "$stage/website-backup"
 
 cp distribution/ChatGPT.mobileconfig outputs/ChatGPT.mobileconfig
 cp distribution/安装与使用说明.md outputs/安装与使用说明.md
-zip -FSqry outputs/Hush-iOS-source.zip ios -x '*.DS_Store' -x '__MACOSX/*'
+SKIP_FALLBACK_BUILD=1 sh scripts/package-ios-source.sh
 
 if command -v plutil >/dev/null 2>&1; then
   plutil -lint outputs/ChatGPT.mobileconfig

@@ -2,14 +2,11 @@ import SwiftUI
 import WebKit
 
 struct ChatWebView: UIViewRepresentable {
-    let url: URL
-
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
-        configuration.limitsNavigationsToAppBoundDomains = true
         configuration.allowsInlineMediaPlayback = true
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -18,7 +15,10 @@ struct ChatWebView: UIViewRepresentable {
         webView.backgroundColor = .systemBackground
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.allowsBackForwardNavigationGestures = false
-        webView.load(URLRequest(url: url, cachePolicy: .reloadRevalidatingCacheData))
+        webView.loadFileURL(
+            AppConfiguration.indexURL,
+            allowingReadAccessTo: AppConfiguration.webRootURL
+        )
         return webView
     }
 
@@ -34,7 +34,11 @@ struct ChatWebView: UIViewRepresentable {
                 decisionHandler(.cancel)
                 return
             }
-            if url.host == AppConfiguration.allowedHost {
+            let rootPath = AppConfiguration.webRootURL.standardizedFileURL.path
+            let requestedPath = url.standardizedFileURL.path
+            if url.isFileURL && (requestedPath == rootPath || requestedPath.hasPrefix(rootPath + "/")) {
+                decisionHandler(.allow)
+            } else if url.absoluteString == "about:blank" {
                 decisionHandler(.allow)
             } else {
                 decisionHandler(.cancel)

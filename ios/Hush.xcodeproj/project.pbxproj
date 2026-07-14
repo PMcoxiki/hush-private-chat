@@ -9,6 +9,7 @@
 		100000000000000000000001 /* HushApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000001 /* HushApp.swift */; };
 		100000000000000000000002 /* ChatWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000002 /* ChatWebView.swift */; };
 		100000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000004 /* Assets.xcassets */; };
+		100000000000000000000004 /* WebApp in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000006 /* WebApp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +18,7 @@
 		200000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		200000000000000000000004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		200000000000000000000005 /* ChatGPT.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChatGPT.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		200000000000000000000006 /* WebApp */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WebApp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -31,7 +33,7 @@
 		};
 		400000000000000000000002 /* Hush */ = {
 			isa = PBXGroup;
-			children = (200000000000000000000001, 200000000000000000000002, 200000000000000000000003, 200000000000000000000004);
+			children = (200000000000000000000001, 200000000000000000000002, 200000000000000000000003, 200000000000000000000004, 200000000000000000000006);
 			path = Hush;
 			sourceTree = "<group>";
 		};
@@ -70,7 +72,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		700000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000003); runOnlyForDeploymentPostprocessing = 0; };
+		700000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000003, 100000000000000000000004); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
