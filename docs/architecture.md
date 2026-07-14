@@ -22,6 +22,10 @@ rotation, replay protection, and push notifications containing no plaintext.
 - `ios/`: app-bound SwiftUI wrapper prepared for Apple signing.
 - `db/schema.ts`: persistence contract and timeline index.
 - Cloudflare D1: encrypted message envelope storage.
+- `fallback/`: static PWA that lazy-loads its MQTT transport only after the
+  hidden gate opens.
+- Public MQTT relay fallback: retained AES-GCM envelopes only; no plaintext,
+  shared secret, or sender identity is present outside the encrypted payload.
 
 ## Influences
 
@@ -36,3 +40,7 @@ rotation, replay protection, and push notifications containing no plaintext.
 2. UI camouflage and cryptographic security are independent layers.
 3. Database migrations are versioned with the source.
 4. Crypto changes require tests, threat-model review, and a dedicated reviewer.
+5. The cover UI is local simulation only and never authenticates with or calls
+   ChatGPT/OpenAI.
+6. Public relay mode is an availability fallback, not the production security
+   target; the native roadmap remains audited Signal Protocol primitives.

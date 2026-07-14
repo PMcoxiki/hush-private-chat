@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import {
+  decryptPayload,
+  deriveRoom,
+  encryptPayload,
+} from "../fallback/src/chat-crypto.ts";
+
+const root = new URL("../", import.meta.url);
+
+test("fallback derives stable rooms and round-trips encrypted payloads", async () => {
+  const first = await deriveRoom("correct horse battery staple 2026");
+  const second = await deriveRoom("correct horse battery staple 2026");
+  assert.equal(first.room, second.room);
+
+  const clear = {
+    senderId: "device-test",
+    text: "private fallback message",
+    createdAt: 1_788_000_000_000,
+  };
+  const envelope = await encryptPayload(first.key, clear);
+  assert.doesNotMatch(JSON.stringify(envelope), /private fallback message|device-test/);
+  assert.deepEqual(await decryptPayload(second.key, envelope), clear);
+});
+
+test("fallback uses retained ciphertext transport without the Sites API", async () => {
+  const [app, transport, manifest, workflow] = await Promise.all([
+    readFile(new URL("fallback/src/App.tsx", root), "utf8"),
+    readFile(new URL("fallback/src/mqtt-room.ts", root), "utf8"),
+    readFile(new URL("public/manifest.webmanifest", root), "utf8"),
+    readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
+  ]);
+  assert.match(app, /ChatGPT <b>5\.2<\/b>/);
+  assert.match(app, /setTimeout\(\(\) => \{/);
+  assert.doesNotMatch(app, /\/api\/messages|OpenAI|ChatGPT.*login/i);
+  assert.match(transport, /retain: true/);
+  assert.match(transport, /broker\.emqx\.io/);
+  assert.match(transport, /broker\.hivemq\.com/);
+  assert.equal(JSON.parse(manifest).start_url, ".");
+  assert.match(workflow, /deploy-pages@v4/);
+});
