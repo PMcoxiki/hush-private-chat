@@ -1,35 +1,132 @@
 "use client";
 
-import { FormEvent, PointerEvent, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { decryptMessage, deriveRoom, encryptMessage, generateSharedSecret } from "./lib/chat-crypto";
 
-type ChatMessage = { id: string; sender: "me" | "them"; text: string; time: string };
+type Mode = "ai" | "secret";
+type ConnectionStatus = "offline" | "connecting" | "online";
+type ChatMessage = { id: string; sender: "me" | "them"; text: string; createdAt: number };
 type ApiMessage = { id: string; senderId: string; cipherText: string; iv: string; createdAt: number };
 
+function Icon({ children }: { children: ReactNode }) {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      {children}
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return <Icon><path d="M4 7.5h16M4 16.5h16" /></Icon>;
+}
+
+function ComposeIcon() {
+  return (
+    <Icon>
+      <path d="M13.5 5H6.8A2.8 2.8 0 0 0 4 7.8v9.4A2.8 2.8 0 0 0 6.8 20h9.4a2.8 2.8 0 0 0 2.8-2.8v-6.7" />
+      <path d="m11 13 1.1-3.6L18.5 3a1.77 1.77 0 0 1 2.5 2.5l-6.4 6.4L11 13Z" />
+    </Icon>
+  );
+}
+
+function ChevronIcon() {
+  return <Icon><path d="m8.5 10 3.5 3.5 3.5-3.5" /></Icon>;
+}
+
+function PlusIcon() {
+  return <Icon><path d="M12 5v14M5 12h14" /></Icon>;
+}
+
+function ArrowUpIcon() {
+  return <Icon><path d="m7 11 5-5 5 5M12 6v12" /></Icon>;
+}
+
+function WaveIcon() {
+  return <Icon><path d="M5 10v4M8.5 7.5v9M12 5v14M15.5 8v8M19 10.5v3" /></Icon>;
+}
+
+function CopyIcon() {
+  return (
+    <Icon>
+      <rect x="8" y="8" width="11" height="11" rx="2" />
+      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+    </Icon>
+  );
+}
+
+function SpeakerIcon() {
+  return (
+    <Icon>
+      <path d="M5 10v4h3l4 3V7l-4 3H5Z" />
+      <path d="M15 9.5a4 4 0 0 1 0 5M17.5 7a7.4 7.4 0 0 1 0 10" />
+    </Icon>
+  );
+}
+
+function ThumbIcon() {
+  return (
+    <Icon>
+      <path d="M8.5 10 11 4.8c.5-1 1.8-.9 2.1-.2.3.8.1 2.2-.3 3.4H18a2 2 0 0 1 1.9 2.5l-1.6 6A2 2 0 0 1 16.4 18H8.5v-8Z" />
+      <path d="M4 10h4.5v8H4z" />
+    </Icon>
+  );
+}
+
+function CloseIcon() {
+  return <Icon><path d="m6 6 12 12M18 6 6 18" /></Icon>;
+}
+
 export default function Home() {
-  const [mode, setMode] = useState<"ai" | "secret">("ai");
+  const [mode, setMode] = useState<Mode>("ai");
   const [showGate, setShowGate] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [secret, setSecret] = useState("");
+  const [revealSecret, setRevealSecret] = useState(false);
+  const [gateBusy, setGateBusy] = useState(false);
+  const [gateError, setGateError] = useState("");
   const [draft, setDraft] = useState("");
-  const [error, setError] = useState("");
-  const [online, setOnline] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [status, setStatus] = useState<ConnectionStatus>("offline");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [aiMessages, setAiMessages] = useState<ChatMessage[]>([
-    { id: "welcome", sender: "them", text: "你好！今天有什么我可以帮你的吗？", time: "现在" },
-  ]);
+  const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyRef = useRef<CryptoKey | null>(null);
   const roomRef = useRef("");
   const senderRef = useRef("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    senderRef.current = localStorage.getItem("hush-device") || crypto.randomUUID();
-    localStorage.setItem("hush-device", senderRef.current);
+    const existing = localStorage.getItem("hush-device-v3");
+    senderRef.current = existing || crypto.randomUUID();
+    if (!existing) localStorage.setItem("hush-device-v3", senderRef.current);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
   }, []);
 
-  useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), [messages, aiMessages]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, aiMessages]);
+
+  useEffect(() => {
+    const field = composerRef.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${Math.min(field.scrollHeight, 128)}px`;
+  }, [draft]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 2_400);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     if (mode !== "secret") return;
@@ -41,105 +138,320 @@ export default function Home() {
         const rows = (await response.json()) as ApiMessage[];
         const decoded = await Promise.all(rows.map(async (row) => {
           try {
-            const clear = await decryptMessage(keyRef.current!, row.cipherText, row.iv);
             return {
               id: row.id,
               sender: row.senderId === senderRef.current ? "me" as const : "them" as const,
-              text: clear,
-              time: new Date(row.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+              text: await decryptMessage(keyRef.current!, row.cipherText, row.iv),
+              createdAt: row.createdAt,
             };
-          } catch { return null; }
+          } catch {
+            return null;
+          }
         }));
-        if (active) { setMessages(decoded.filter(Boolean) as ChatMessage[]); setOnline(true); }
-      } catch { if (active) setOnline(false); }
+        if (active) {
+          setMessages(decoded.filter(Boolean) as ChatMessage[]);
+          setStatus("online");
+        }
+      } catch {
+        if (active) setStatus("offline");
+      }
     };
     sync();
-    const timer = setInterval(sync, 2500);
-    return () => { active = false; clearInterval(timer); };
+    const timer = window.setInterval(sync, 2_500);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, [mode]);
 
-  const beginHold = (event: PointerEvent) => {
+  const beginHold = (event: PointerEvent<HTMLButtonElement>) => {
+    if (mode !== "ai") return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    holdTimer.current = setTimeout(() => { setShowGate(true); navigator.vibrate?.(20); }, 900);
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = setTimeout(() => {
+      setShowGate(true);
+      navigator.vibrate?.(20);
+    }, 900);
   };
 
-  const cancelHold = () => { if (holdTimer.current) clearTimeout(holdTimer.current); };
+  const cancelHold = () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+  };
 
   const unlock = async (event: FormEvent) => {
     event.preventDefault();
-    if (secret.trim().length < 16) { setError("为了安全，密钥至少需要 16 个字符"); return; }
-    const derived = await deriveRoom(secret.trim());
-    keyRef.current = derived.key;
-    roomRef.current = derived.room;
-    setMessages([]); setMode("secret"); setShowGate(false); setSecret(""); setError("");
+    const normalized = secret.trim();
+    if (normalized.length < 16) {
+      setGateError("为了安全，密钥至少需要 16 个字符");
+      return;
+    }
+    setGateBusy(true);
+    setGateError("");
+    try {
+      const derived = await deriveRoom(normalized);
+      keyRef.current = derived.key;
+      roomRef.current = derived.room;
+      setMessages([]);
+      setStatus("connecting");
+      setMode("secret");
+      setShowGate(false);
+      setSecret("");
+      setRevealSecret(false);
+    } catch {
+      setGateError("无法打开安全对话，请重试");
+    } finally {
+      setGateBusy(false);
+    }
+  };
+
+  const lockRoom = () => {
+    keyRef.current = null;
+    roomRef.current = "";
+    setMessages([]);
+    setStatus("offline");
+    setMode("ai");
+    setNotice("已返回普通对话");
+  };
+
+  const startNewChat = () => {
+    if (mode === "secret") lockRoom();
+    setAiMessages([]);
+    setDraft("");
+    setShowSidebar(false);
+    setNotice("已开始新对话");
+  };
+
+  const handleMenu = () => {
+    if (mode === "secret") {
+      lockRoom();
+      return;
+    }
+    setShowSidebar(true);
+  };
+
+  const makeSecret = () => {
+    setSecret(generateSharedSecret());
+    setRevealSecret(true);
+    setGateError("");
+  };
+
+  const copySecret = async () => {
+    if (!secret) return;
+    try {
+      await navigator.clipboard.writeText(secret);
+      setNotice("密钥已复制");
+    } catch {
+      setGateError("无法自动复制，请长按密钥复制");
+    }
+  };
+
+  const copyMessage = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice("已复制");
+    } catch {
+      setNotice("无法自动复制");
+    }
+  };
+
+  const readMessage = (text: string) => {
+    if (!("speechSynthesis" in window)) {
+      setNotice("当前浏览器不支持朗读");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    setNotice("正在朗读");
   };
 
   const send = async (event: FormEvent) => {
     event.preventDefault();
     const text = draft.trim();
     if (!text) return;
-    setDraft("");
+
     if (mode === "ai") {
-      setAiMessages((items) => [...items, { id: crypto.randomUUID(), sender: "me", text, time: "现在" }]);
-      setTimeout(() => setAiMessages((items) => [...items, {
-        id: crypto.randomUUID(), sender: "them", text: "我在听。你可以继续说说具体情况，我会帮你梳理思路。", time: "现在",
-      }]), 650);
+      setDraft("");
+      setAiMessages((items) => [...items, {
+        id: crypto.randomUUID(), sender: "me", text, createdAt: Date.now(),
+      }]);
+      window.setTimeout(() => {
+        setAiMessages((items) => [...items, {
+          id: crypto.randomUUID(),
+          sender: "them",
+          text: "当然可以。告诉我你想解决的具体问题，我会帮你把思路一步步整理清楚。",
+          createdAt: Date.now(),
+        }]);
+      }, 650);
       return;
     }
-    if (!keyRef.current) return;
-    const encrypted = await encryptMessage(keyRef.current, text);
-    await fetch("/api/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
-      room: roomRef.current, senderId: senderRef.current, cipherText: encrypted.cipherText, iv: encrypted.iv,
-    }) });
-    setMessages((items) => [...items, { id: crypto.randomUUID(), sender: "me", text, time: "现在" }]);
+
+    if (status !== "online" || !keyRef.current) {
+      setNotice("安全连接尚未就绪");
+      return;
+    }
+
+    setDraft("");
+    try {
+      const encrypted = await encryptMessage(keyRef.current, text);
+      const response = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          room: roomRef.current,
+          senderId: senderRef.current,
+          cipherText: encrypted.cipherText,
+          iv: encrypted.iv,
+        }),
+      });
+      if (!response.ok) throw new Error("Message rejected");
+      const result = (await response.json()) as { id: string; createdAt: number };
+      setMessages((items) => [...items, { id: result.id, sender: "me", text, createdAt: result.createdAt }]);
+    } catch {
+      setDraft(text);
+      setNotice("发送失败，请检查网络");
+    }
+  };
+
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
   };
 
   const activeMessages = mode === "ai" ? aiMessages : messages;
+  const statusCopy = status === "online" ? "安全频道已连接" : status === "connecting" ? "安全频道连接中" : "安全频道离线";
 
   return (
     <main className="app-shell">
-      <section className="phone-app" aria-label="Hush 加密聊天">
+      <section className="phone-app" aria-label="ChatGPT 移动对话">
         <header className="topbar">
-          <button className="icon-button menu" aria-label="打开菜单"><span></span><span></span></button>
-          <button className="identity" onPointerDown={beginHold} onPointerUp={cancelHold} onPointerCancel={cancelHold} onContextMenu={(e) => e.preventDefault()} aria-label="ChatGPT">
-            <span><strong>ChatGPT <b>5.2</b></strong><small>{mode === "ai" ? "" : online ? "安全连接" : "连接中"}</small></span>
-            <span className="model-chevron">⌄</span>
+          <button className="icon-button" aria-label={mode === "secret" ? "退出安全对话" : "打开侧边栏"} onClick={handleMenu}>
+            <MenuIcon />
           </button>
-          <button className="icon-button compose" aria-label="新对话">＋</button>
+          <button
+            className="identity"
+            onPointerDown={beginHold}
+            onPointerUp={cancelHold}
+            onPointerCancel={cancelHold}
+            onPointerLeave={cancelHold}
+            onContextMenu={(event) => event.preventDefault()}
+            aria-label="ChatGPT 5.2"
+          >
+            <strong>ChatGPT <span>5.2</span></strong>
+            <ChevronIcon />
+          </button>
+          <button className="icon-button" aria-label="新对话" onClick={startNewChat}>
+            <ComposeIcon />
+          </button>
         </header>
 
-        <div className={`conversation ${mode}`}>
-          {mode === "secret" && <div className="day-label">今天</div>}
-          {mode === "secret" && <div className="encryption-note"><span>✓</span> 消息已在此设备加密，服务器无法读取</div>}
-          {activeMessages.map((message) => (
-            <div className={`message-row ${message.sender}`} key={message.id}>
-              {message.sender === "them" && <div className={`avatar ${mode === "secret" ? "muted-avatar" : ""}`}>{mode === "ai" ? "✦" : "A"}</div>}
-              <div><div className="bubble">{message.text}</div><time>{message.time}{message.sender === "me" ? "  ✓✓" : ""}</time></div>
+        <div className={`conversation ${mode}`} aria-live="polite">
+          {activeMessages.length === 0 ? (
+            <div className="welcome-state">
+              <h1>有什么可以帮忙的？</h1>
             </div>
+          ) : activeMessages.map((message) => (
+            <article className={`message-row ${message.sender}`} key={message.id}>
+              <div className="message-content">
+                <div className="bubble">{message.text}</div>
+                {message.sender === "them" ? (
+                  <div className="message-actions" aria-label="消息操作">
+                    <button type="button" aria-label="复制" onClick={() => copyMessage(message.text)}><CopyIcon /></button>
+                    <button type="button" aria-label="朗读" onClick={() => readMessage(message.text)}><SpeakerIcon /></button>
+                    <button type="button" aria-label="有帮助" onClick={() => setNotice("感谢你的反馈")}><ThumbIcon /></button>
+                  </div>
+                ) : null}
+              </div>
+            </article>
           ))}
           <div ref={bottomRef} />
         </div>
 
-        <form className="composer" onSubmit={send}>
-          <button type="button" className="attach" aria-label="添加附件">＋</button>
-          <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="询问任何问题" aria-label="消息" />
-          <button className="send" aria-label="发送消息" disabled={!draft.trim()}>↑</button>
-        </form>
-        <div className="home-indicator"></div>
-      </section>
+        <div className="composer-zone">
+          <form className="composer" onSubmit={send}>
+            <button type="button" className="tool-button" aria-label="添加照片或文件" onClick={() => setNotice("可添加照片或文件")}>
+              <PlusIcon />
+            </button>
+            <textarea
+              ref={composerRef}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={handleComposerKeyDown}
+              placeholder="询问任何问题"
+              aria-label="消息"
+              rows={1}
+              maxLength={20_000}
+            />
+            <button
+              type={draft.trim() ? "submit" : "button"}
+              className={`composer-action ${draft.trim() ? "send-active" : "voice"}`}
+              aria-label={draft.trim() ? "发送消息" : "开始语音模式"}
+              onClick={draft.trim() ? undefined : () => setNotice("语音模式暂不可用")}
+            >
+              {draft.trim() ? <ArrowUpIcon /> : <WaveIcon />}
+            </button>
+          </form>
+          <p className="disclaimer">ChatGPT 可能会出错，请核查重要信息。</p>
+        </div>
 
-      {showGate && <div className="gate-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowGate(false); }}>
-        <form className="gate" onSubmit={unlock}>
-          <div className="lock-mark">⌁</div>
-          <h2>模型诊断</h2>
-          <p>输入诊断访问令牌</p>
-          <input autoFocus type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="访问密钥" autoComplete="off" />
-          <button type="button" className="generate" onClick={() => setSecret(generateSharedSecret())}>生成高强度密钥</button>
-          {error && <div className="gate-error">{error}</div>}
-          <button type="submit">进入对话</button>
-          <button type="button" className="cancel" onClick={() => setShowGate(false)}>取消</button>
-        </form>
-      </div>}
+        <span className="sr-only" aria-live="polite">{mode === "secret" ? statusCopy : ""}</span>
+        {notice ? <div className="toast" role="status">{notice}</div> : null}
+
+        {showSidebar ? (
+          <div className="sidebar-backdrop" onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowSidebar(false);
+          }}>
+            <aside className="sidebar" aria-label="对话侧边栏">
+              <div className="sidebar-header">
+                <button type="button" aria-label="关闭侧边栏" onClick={() => setShowSidebar(false)}><CloseIcon /></button>
+                <button type="button" aria-label="新对话" onClick={startNewChat}><ComposeIcon /></button>
+              </div>
+              <button type="button" className="sidebar-home" onClick={() => setShowSidebar(false)}>
+                <span className="sidebar-mark">✦</span><strong>ChatGPT</strong>
+              </button>
+              <div className="history-label">今天</div>
+              <button type="button" className="history-item" onClick={() => setShowSidebar(false)}>整理今天的工作计划</button>
+              <button type="button" className="history-item" onClick={() => setShowSidebar(false)}>帮我润色一段文字</button>
+              <div className="sidebar-profile"><span>•••</span><strong>设置与帮助</strong></div>
+            </aside>
+          </div>
+        ) : null}
+
+        {showGate ? (
+          <div className="gate-backdrop" onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !gateBusy) setShowGate(false);
+          }}>
+            <form className="gate" onSubmit={unlock}>
+              <div className="sheet-handle" aria-hidden="true" />
+              <div className="lock-mark" aria-hidden="true">⌁</div>
+              <h2>模型诊断</h2>
+              <p>输入诊断访问令牌</p>
+              <div className="secret-field">
+                <input
+                  autoFocus
+                  type={revealSecret ? "text" : "password"}
+                  value={secret}
+                  onChange={(event) => setSecret(event.target.value)}
+                  placeholder="访问密钥"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <button type="button" onClick={() => setRevealSecret((value) => !value)}>
+                  {revealSecret ? "隐藏" : "显示"}
+                </button>
+              </div>
+              <div className="token-actions">
+                <button type="button" onClick={makeSecret}>生成高强度密钥</button>
+                <button type="button" onClick={copySecret} disabled={!secret}>复制</button>
+              </div>
+              {gateError ? <div className="gate-error">{gateError}</div> : null}
+              <button type="submit" disabled={gateBusy}>{gateBusy ? "正在验证…" : "进入对话"}</button>
+              <button type="button" className="cancel" onClick={() => setShowGate(false)} disabled={gateBusy}>取消</button>
+            </form>
+          </div>
+        ) : null}
+      </section>
     </main>
   );
 }

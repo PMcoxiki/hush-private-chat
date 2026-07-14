@@ -12,8 +12,13 @@ test("renders the ChatGPT-style mobile shell", async () => {
   ]);
   assert.match(layout, /title: "ChatGPT"/);
   assert.match(page, /询问任何问题/);
-  assert.match(page, /ChatGPT <b>5\.2<\/b>/);
+  assert.match(page, /aria-label="ChatGPT 5\.2"/);
+  assert.match(page, /<strong>ChatGPT <span>5\.2<\/span><\/strong>/);
+  assert.match(page, /有什么可以帮忙的？/);
+  assert.match(page, /className="message-actions"/);
+  assert.match(page, /<textarea/);
   assert.match(styles, /\.me \.bubble/);
+  assert.doesNotMatch(page, /className="encryption-note"|<time>/);
   assert.doesNotMatch(`${layout}${page}`, /codex-preview|react-loading-skeleton/i);
 });
 
@@ -39,5 +44,6 @@ test("keeps plaintext crypto operations on the client", async () => {
   assert.match(cryptoSource, /600_000/);
   assert.match(apiSource, /cipher_text/);
   assert.doesNotMatch(apiSource, /plaintext|message_text|\btext\b/);
-  assert.match(pageSource, /setTimeout\(\(\) => \{ setShowGate\(true\)/);
+  assert.match(pageSource, /holdTimer\.current = setTimeout\(\(\) => \{/);
+  assert.match(pageSource, /\}, 900\);/);
 });
