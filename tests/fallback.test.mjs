@@ -31,7 +31,12 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
     readFile(new URL("public/manifest.webmanifest", root), "utf8"),
     readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
   ]);
-  assert.match(app, /ChatGPT <b>5\.2<\/b>/);
+  assert.match(app, /aria-label="ChatGPT 5\.2"/);
+  assert.match(app, /<strong>ChatGPT <span>5\.2<\/span><\/strong>/);
+  assert.match(app, /className="welcome-state"/);
+  assert.match(app, /className="message-actions"/);
+  assert.match(app, /<textarea/);
+  assert.doesNotMatch(app, /className="encryption-note"|<time>/);
   assert.match(app, /setTimeout\(\(\) => \{/);
   assert.doesNotMatch(app, /\/api\/messages|OpenAI|ChatGPT.*login/i);
   assert.match(transport, /retain: true/);
