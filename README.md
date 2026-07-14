@@ -36,6 +36,8 @@ the shared room secret is the only private-conversation gate.
 - `npm run lint` — static checks
 - `npm test` — production build and product invariants
 - `npm run build:fallback` — create the GitHub Pages artifact
+- `npm run package:release` — rebuild the friend installer, native source zip,
+  and SHA-256 checksums from tracked release sources
 - `npm run db:generate` — versioned D1 migration
 
 For native packaging, open `ios/Hush.xcodeproj` with Xcode 16+, choose an Apple

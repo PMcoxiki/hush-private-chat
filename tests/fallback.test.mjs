@@ -40,3 +40,21 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
   assert.equal(JSON.parse(manifest).start_url, ".");
   assert.match(workflow, /deploy-pages@v4/);
 });
+
+test("all iPhone install surfaces target the accessible fallback deployment", async () => {
+  const deploymentUrl = "https://pmcoxiki.github.io/hush-private-chat/";
+  const [nativeApp, nativePolicy, profileRoute, profile, instructions] = await Promise.all([
+    readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),
+    readFile(new URL("ios/Hush/Info.plist", root), "utf8"),
+    readFile(new URL("app/install.mobileconfig/route.ts", root), "utf8"),
+    readFile(new URL("distribution/ChatGPT.mobileconfig", root), "utf8"),
+    readFile(new URL("distribution/安装与使用说明.md", root), "utf8"),
+  ]);
+
+  assert.match(nativeApp, new RegExp(deploymentUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(nativePolicy, /<string>pmcoxiki\.github\.io<\/string>/);
+  assert.match(profileRoute, new RegExp(deploymentUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(profile, new RegExp(deploymentUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(instructions, new RegExp(deploymentUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(`${nativeApp}${nativePolicy}${profileRoute}${profile}${instructions}`, /hush-private-ai\.coxiki\.chatgpt\.site/);
+});

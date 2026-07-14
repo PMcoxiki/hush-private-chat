@@ -1,8 +1,13 @@
 # iOS build
 
 The native shell deliberately keeps cryptographic operations in the web client
-so the server receives ciphertext only. The shell restricts navigation to the
-deployed app-bound domain.
+so the relay receives ciphertext only. The shell loads the GitHub Pages fallback
+at `https://pmcoxiki.github.io/hush-private-chat/` and restricts top-level
+navigation to that app-bound domain.
+
+If the repository name or deployment URL changes, update both
+`AppConfiguration.webURL` in `Hush/HushApp.swift` and `WKAppBoundDomains` in
+`Hush/Info.plist` before building.
 
 Open `Hush.xcodeproj` in Xcode 16 or newer, select a personal or paid Apple
 Development team, change the bundle identifier if needed, then Archive. For a

@@ -34,7 +34,7 @@ struct ChatWebView: UIViewRepresentable {
                 decisionHandler(.cancel)
                 return
             }
-            if url.host == "hush-private-ai.coxiki.chatgpt.site" {
+            if url.host == AppConfiguration.allowedHost {
                 decisionHandler(.allow)
             } else {
                 decisionHandler(.cancel)

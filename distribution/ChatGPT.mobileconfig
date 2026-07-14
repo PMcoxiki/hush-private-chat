@@ -1,4 +1,4 @@
-const profile = `<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -28,14 +28,4 @@ const profile = `<?xml version="1.0" encoding="UTF-8"?>
   <key>PayloadUUID</key><string>86EDC829-D1C2-49EF-B340-C42B9DC3B5DC</string>
   <key>PayloadVersion</key><integer>1</integer>
 </dict>
-</plist>`;
-
-export async function GET() {
-  return new Response(profile, {
-    headers: {
-      "content-type": "application/x-apple-aspen-config",
-      "content-disposition": "attachment; filename=ChatGPT.mobileconfig",
-      "cache-control": "public, max-age=3600",
-    },
-  });
-}
+</plist>
