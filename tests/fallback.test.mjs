@@ -18,6 +18,7 @@ import {
   selectEmergencyCover,
   serializeCoverHistory,
 } from "../shared/cover-chat.ts";
+import { settleSessionOperation } from "../shared/private-session.ts";
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -162,6 +163,30 @@ test("private presentation groups cadence while preserving every original segmen
   assert.ok(turns[1].messageIds.includes("4"));
 });
 
+test("stale private operations cannot revive plaintext after a lock", async () => {
+  let currentSession = 7;
+  let resolveSend;
+  const pendingSend = new Promise((resolve) => { resolveSend = resolve; });
+  const sendResult = settleSessionOperation(pendingSend, currentSession, () => currentSession);
+
+  currentSession += 1;
+  resolveSend({ text: "must not return to the cover" });
+  assert.deepEqual(await sendResult, {
+    status: "fulfilled",
+    value: { text: "must not return to the cover" },
+    current: false,
+  });
+
+  let rejectUnlock;
+  const pendingUnlock = new Promise((resolve, reject) => { rejectUnlock = reject; });
+  const unlockResult = settleSessionOperation(pendingUnlock, currentSession, () => currentSession);
+  currentSession += 1;
+  rejectUnlock(new Error("late room failure"));
+  const settledUnlock = await unlockResult;
+  assert.equal(settledUnlock.status, "rejected");
+  assert.equal(settledUnlock.current, false);
+});
+
 test("all iPhone install surfaces target the configured fallback deployment", async () => {
   const deploymentUrl = "https://pmcoxiki.github.io/hush-private-chat/";
   const [profileRoute, profile, instructions] = await Promise.all([
@@ -205,8 +230,9 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
 });
 
 test("backgrounding synchronously covers and locks private presentation on web and iOS", async () => {
-  const [shell, styles, serviceWorker, nativeApp, webView, security] = await Promise.all([
+  const [shell, sitesRoom, styles, serviceWorker, nativeApp, webView, security] = await Promise.all([
     readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
+    readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("shared/chat-shell.css", root), "utf8"),
     readFile(new URL("public/sw.js", root), "utf8"),
     readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),
@@ -218,14 +244,27 @@ test("backgrounding synchronously covers and locks private presentation on web a
   assert.match(shell, /visibilitychange/);
   assert.match(shell, /pagehide/);
   assert.match(shell, /app-inactive/);
+  assert.doesNotMatch(shell, /if \(mode !== "secret"\) return;/);
+  assert.match(shell, /useEffectEvent/);
+  assert.match(shell, /lockPrivateForLifecycle/);
+  assert.match(shell, /\}, \[\]\);/);
   assert.match(shell, /clearPrivateState\(\);[\s\S]*activateEmergencyCover\(\)/);
+  assert.match(shell, /settleSessionOperation\([\s\S]*activeTransport\.send\(text\)/);
+  assert.match(shell, /if \(!result\.current\) return;/);
+  assert.match(shell, /speechSynthesis\.cancel\(\)/);
+  assert.match(sitesRoom, /new Set<AbortController>/);
+  assert.match(sitesRoom, /controller\.abort\(\)/);
   assert.match(styles, /html\[data-private-locked="true"\] \.privacy-shield/);
   assert.match(serviceWorker, /chat-shell-v4/);
   assert.match(nativeApp, /scenePhase/);
   assert.match(nativeApp, /privacyCoverVisible = true/);
   assert.match(nativeApp, /PrivacyCoverView/);
+  assert.match(nativeApp, /onPrivacyReady/);
+  assert.doesNotMatch(nativeApp, /asyncAfter/);
   assert.match(webView, /app-active/);
   assert.match(webView, /app-inactive/);
+  assert.match(webView, /WKScriptMessageHandler/);
+  assert.match(webView, /privacyReady/);
   assert.match(security, /casual inspection/);
   assert.match(security, /cannot prevent a user from taking a screenshot/);
 });

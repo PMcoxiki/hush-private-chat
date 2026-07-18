@@ -4,13 +4,15 @@ import WebKit
 struct ChatWebView: UIViewRepresentable {
     let lifecycleRevision: Int
     let isAppActive: Bool
+    let onPrivacyReady: () -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(onPrivacyReady: onPrivacyReady) }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
+        configuration.userContentController.add(context.coordinator, name: "privacyReady")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -26,16 +28,32 @@ struct ChatWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.onPrivacyReady = onPrivacyReady
         guard context.coordinator.lifecycleRevision != lifecycleRevision else { return }
         context.coordinator.lifecycleRevision = lifecycleRevision
         let eventName = isAppActive ? "app-active" : "app-inactive"
-        webView.evaluateJavaScript(
-            "document.dispatchEvent(new Event('\(eventName)'))"
-        )
+        webView.evaluateJavaScript("document.dispatchEvent(new Event('\(eventName)'))")
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "privacyReady")
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var lifecycleRevision = -1
+        var onPrivacyReady: () -> Void
+
+        init(onPrivacyReady: @escaping () -> Void) {
+            self.onPrivacyReady = onPrivacyReady
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard message.name == "privacyReady", message.body as? String == "cover-ready" else { return }
+            DispatchQueue.main.async { self.onPrivacyReady() }
+        }
 
         func webView(
             _ webView: WKWebView,

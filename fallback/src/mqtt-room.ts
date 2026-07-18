@@ -90,7 +90,7 @@ export function openRoom(options: RoomOptions): RoomTransport {
 
   return {
     async send(text) {
-      if (!client.connected) throw new Error("Secure relay is offline");
+      if (closed || !client.connected) throw new Error("Secure relay is offline");
       const message: RoomMessage = {
         id: messageId(),
         senderId: options.senderId,
@@ -98,6 +98,7 @@ export function openRoom(options: RoomOptions): RoomTransport {
         createdAt: Date.now(),
       };
       const envelope = await encryptPayload(options.key, message);
+      if (closed || !client.connected) throw new Error("Secure relay is offline");
       const topic = `${topicBase}/${message.id}`;
       await new Promise<void>((resolve, reject) => {
         client.publish(topic, JSON.stringify(envelope), { qos: 1, retain: true }, (error) => {
