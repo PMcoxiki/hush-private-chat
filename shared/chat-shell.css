@@ -32,6 +32,25 @@ button { -webkit-tap-highlight-color: transparent; }
   box-shadow: 0 24px 70px rgba(0, 0, 0, .12);
 }
 
+.privacy-shield { display: none; }
+html[data-private-locked="true"] .privacy-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: #171717;
+  pointer-events: all;
+}
+.privacy-topbar { min-height: calc(58px + env(safe-area-inset-top)); padding: max(9px, env(safe-area-inset-top)) 18px 7px; display: grid; grid-template-columns: 32px 1fr 32px; align-items: center; text-align: center; }
+.privacy-topbar strong { font-size: 16px; font-weight: 650; }
+.privacy-topbar svg { width: 23px; height: 23px; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.privacy-welcome { flex: 1; padding-bottom: 12vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+.privacy-welcome h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -.035em; }
+.privacy-composer { min-height: 54px; margin: 0 12px max(21px, env(safe-area-inset-bottom)); padding: 7px 14px; display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; gap: 8px; border: 1px solid #e5e5e5; border-radius: 28px; background: #f4f4f4; color: #777; font-size: 16px; }
+.privacy-composer svg { width: 22px; height: 22px; stroke: #333; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
 .topbar {
   flex: none;
   min-height: 58px;

@@ -86,7 +86,7 @@ test("emergency cover creates a convincing local AI conversation", async () => {
   ]);
   assert.ok(messages.every((message, index) => index === 0 || message.createdAt > messages[index - 1].createdAt));
   assert.match(app, /mode === "secret" \? activateCover/);
-  assert.match(app, /cover\.activateEmergencyCover\(\)/);
+  assert.match(app, /activateEmergencyCover\(\)/);
   assert.match(app, /roomSession !== roomSessionRef\.current/);
   assert.match(app, /roomSessionRef\.current \+= 1;/);
   assert.doesNotMatch(app, /transportRef\.current\.send\([^)]*cover/i);
@@ -187,7 +187,7 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
   ]);
 
   assert.match(nativeApp, /appendingPathComponent\("WebApp", isDirectory: true\)/);
-  assert.match(nativeApp, /ChatWebView\(\)/);
+  assert.match(nativeApp, /ChatWebView\(/);
   assert.match(webView, /loadFileURL/);
   assert.match(webView, /allowingReadAccessTo: AppConfiguration\.webRootURL/);
   assert.match(project, /WebApp in Resources/);
@@ -202,6 +202,32 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
     ]);
     assert.deepEqual(embedded, built, `stale embedded iOS asset: ${relative}`);
   }
+});
+
+test("backgrounding synchronously covers and locks private presentation on web and iOS", async () => {
+  const [shell, styles, serviceWorker, nativeApp, webView, security] = await Promise.all([
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
+    readFile(new URL("shared/chat-shell.css", root), "utf8"),
+    readFile(new URL("public/sw.js", root), "utf8"),
+    readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),
+    readFile(new URL("ios/Hush/ChatWebView.swift", root), "utf8"),
+    readFile(new URL("SECURITY.md", root), "utf8"),
+  ]);
+
+  assert.match(shell, /document\.documentElement\.dataset\.privateLocked = "true"/);
+  assert.match(shell, /visibilitychange/);
+  assert.match(shell, /pagehide/);
+  assert.match(shell, /app-inactive/);
+  assert.match(shell, /clearPrivateState\(\);[\s\S]*activateEmergencyCover\(\)/);
+  assert.match(styles, /html\[data-private-locked="true"\] \.privacy-shield/);
+  assert.match(serviceWorker, /chat-shell-v4/);
+  assert.match(nativeApp, /scenePhase/);
+  assert.match(nativeApp, /privacyCoverVisible = true/);
+  assert.match(nativeApp, /PrivacyCoverView/);
+  assert.match(webView, /app-active/);
+  assert.match(webView, /app-inactive/);
+  assert.match(security, /casual inspection/);
+  assert.match(security, /cannot prevent a user from taking a screenshot/);
 });
 
 test("release packaging refuses an unavailable iPhone target", async () => {

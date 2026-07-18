@@ -19,7 +19,7 @@ test("renders the ChatGPT-style mobile shell", async () => {
   assert.match(shell, /有什么可以帮忙的？/);
   assert.match(shell, /className="message-actions"/);
   assert.match(shell, /mode === "secret" \? activateCover/);
-  assert.match(shell, /activateEmergencyCover/);
+  assert.match(shell, /activateEmergencyCover\(\)/);
   assert.match(shell, /placeholder="搜索对话"/);
   assert.match(shell, /showVoice/);
   assert.match(shell, /<textarea/);
