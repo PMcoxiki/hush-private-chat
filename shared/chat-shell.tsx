@@ -67,10 +67,7 @@ function ThumbIcon() { return <Icon><path d="M8.5 10 11 4.8c.5-1 1.8-.9 2.1-.2.3
 function KnotMark({ small = false }: { small?: boolean }) {
   return (
     <span className={`knot-mark${small ? " small" : ""}`} aria-hidden="true">
-      <svg viewBox="0 0 32 32" fill="none">
-        <path d="M16 4.5c4 0 6.8 2.1 8 5.2 3.1 1.8 4.3 5.1 3.2 8.1.2 3.6-1.9 6.4-4.8 7.5-2 2.9-5.4 3.8-8.3 2.3-3.6.5-6.5-1.4-7.7-4.3-3-1.8-4-5.2-2.7-8.1-.2-3.6 2-6.4 5-7.4C10.5 5.5 13.1 4.5 16 4.5Z" />
-        <path d="M8.4 8.1c3.2-.6 6.6.7 8.3 3.6l5.6 9.6M4.1 15.1c2-2.6 5.4-3.8 8.5-2.2l10.2 5.3M6.1 23.6c-1-3.1.2-6.5 3-8.3l9.5-5.8M14.2 28c-2.6-2-3.7-5.5-2.1-8.5l5.1-10.2M22.8 25.6c-3.2.7-6.6-.6-8.3-3.5L9 12.5M27.7 17.6c-2 2.6-5.4 3.8-8.5 2.2L9 14.5" />
-      </svg>
+      <span className="knot-art" style={{ backgroundImage: "url('./app-icon.png')" }} />
     </span>
   );
 }
