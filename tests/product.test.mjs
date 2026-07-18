@@ -5,11 +5,12 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("renders the ChatGPT-style mobile shell", async () => {
-  const [layout, page, shell, styles] = await Promise.all([
+  const [layout, page, shell, styles, quickReplies] = await Promise.all([
     readFile(new URL("app/layout.tsx", root), "utf8"),
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
     readFile(new URL("shared/chat-shell.css", root), "utf8"),
+    readFile(new URL("shared/private-quick-replies.ts", root), "utf8"),
   ]);
   assert.match(layout, /title: "ChatGPT"/);
   assert.match(shell, /询问任何问题/);
@@ -18,12 +19,16 @@ test("renders the ChatGPT-style mobile shell", async () => {
   assert.doesNotMatch(shell, /ChatGPT 5\.2|<span>5\.2<\/span>/);
   assert.match(shell, /有什么可以帮忙的？/);
   assert.match(shell, /className="message-actions"/);
-  assert.match(shell, /mode === "secret" \? activateCover/);
+  assert.match(shell, /aria-label=\{mode === "secret" \? "显示建议回复"/);
+  assert.match(shell, /setShowQuickReplies\(true\)/);
+  assert.doesNotMatch(shell, /mode === "secret" \? activateCover/);
   assert.match(shell, /activateEmergencyCover\(\)/);
   assert.match(shell, /placeholder="搜索对话"/);
   assert.match(shell, /showVoice/);
   assert.match(shell, /<textarea/);
   assert.match(styles, /\.me \.bubble/);
+  assert.match(styles, /\.quick-reply-option/);
+  assert.match(quickReplies, /PRIVATE_QUICK_REPLIES/);
   assert.doesNotMatch(shell, /className="encryption-note"|<time>/);
   assert.doesNotMatch(`${layout}${page}${shell}`, /codex-preview|react-loading-skeleton/i);
 });
