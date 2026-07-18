@@ -19,6 +19,10 @@ import {
   serializeCoverHistory,
 } from "../shared/cover-chat.ts";
 import { settleSessionOperation } from "../shared/private-session.ts";
+import {
+  mergePrivateQuickReply,
+  PRIVATE_QUICK_REPLIES,
+} from "../shared/private-quick-replies.ts";
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -86,11 +90,36 @@ test("emergency cover creates a convincing local AI conversation", async () => {
     "me", "them", "me", "them", "me", "them", "me", "them", "me", "them",
   ]);
   assert.ok(messages.every((message, index) => index === 0 || message.createdAt > messages[index - 1].createdAt));
-  assert.match(app, /mode === "secret" \? activateCover/);
+  assert.match(app, /if \(mode === "secret"\) \{\s*activateCover\(\);\s*return;\s*\}/);
   assert.match(app, /activateEmergencyCover\(\)/);
   assert.match(app, /roomSession !== roomSessionRef\.current/);
   assert.match(app, /roomSessionRef\.current \+= 1;/);
   assert.doesNotMatch(app, /transportRef\.current\.send\([^)]*cover/i);
+});
+
+test("private composer plus offers AI-like replies without leaving the room", async () => {
+  const shell = await readFile(new URL("shared/chat-shell.tsx", root), "utf8");
+  const toolStart = shell.indexOf("const handleComposerTool");
+  const toolEnd = shell.indexOf("const choosePrivateQuickReply");
+  const replyEnd = shell.indexOf("const makeSecret");
+  const toolHandler = shell.slice(toolStart, toolEnd);
+  const replyHandler = shell.slice(toolEnd, replyEnd);
+
+  assert.equal(PRIVATE_QUICK_REPLIES.length, 8);
+  assert.equal(new Set(PRIVATE_QUICK_REPLIES).size, PRIVATE_QUICK_REPLIES.length);
+  assert.ok(PRIVATE_QUICK_REPLIES.every((reply) => reply.length >= 20));
+  assert.equal(mergePrivateQuickReply("", PRIVATE_QUICK_REPLIES[0]), PRIVATE_QUICK_REPLIES[0]);
+  assert.equal(
+    mergePrivateQuickReply("已有内容", PRIVATE_QUICK_REPLIES[1]),
+    `已有内容\n\n${PRIVATE_QUICK_REPLIES[1]}`,
+  );
+  assert.ok(toolStart > 0 && toolEnd > toolStart && replyEnd > toolEnd);
+  assert.match(toolHandler, /mode === "secret"[\s\S]*setShowQuickReplies\(true\)/);
+  assert.doesNotMatch(toolHandler, /activateCover|clearPrivateState|transportRef|\.close\(/);
+  assert.match(replyHandler, /mergePrivateQuickReply/);
+  assert.doesNotMatch(replyHandler, /transportRef|\.send\(|\.close\(/);
+  assert.match(shell, /aria-label="建议回复"/);
+  assert.match(shell, /点选后会填入输入框，可编辑后发送/);
 });
 
 test("local cover engine recognizes varied consultation intents without network access", () => {
@@ -241,11 +270,17 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
   ]);
 
   assert.match(nativeApp, /appendingPathComponent\("WebApp", isDirectory: true\)/);
+  assert.match(nativeApp, /URL\(string: "hush:\/\/app\/index\.html"\)/);
   assert.match(nativeApp, /ChatWebView\(/);
-  assert.match(webView, /loadFileURL/);
-  assert.match(webView, /allowingReadAccessTo: AppConfiguration\.webRootURL/);
+  assert.match(webView, /setURLSchemeHandler\(context\.coordinator, forURLScheme: "hush"\)/);
+  assert.match(webView, /WKURLSchemeHandler/);
+  assert.match(webView, /webView\.load\(URLRequest\(url: AppConfiguration\.appURL\)\)/);
+  assert.match(webView, /requestedPath\.hasPrefix\(rootPath \+ "\/"\)/);
+  assert.match(webView, /case "js": "text\/javascript"/);
+  assert.match(webView, /case "css": "text\/css"/);
   assert.match(project, /WebApp in Resources/);
-  assert.doesNotMatch(`${nativeApp}${webView}`, /URL\(string:|pmcoxiki\.github\.io|hush-private-ai/);
+  assert.doesNotMatch(webView, /loadFileURL|allowFileAccessFromFileURLs/);
+  assert.doesNotMatch(`${nativeApp}${webView}`, /URL\(string:\s*"https?:|pmcoxiki\.github\.io|hush-private-ai/);
   assert.doesNotMatch(nativePolicy, /pmcoxiki\.github\.io|WKAppBoundDomains/);
   assert.deepEqual(embeddedFiles, builtFiles);
 
@@ -287,6 +322,7 @@ test("backgrounding synchronously covers and locks private presentation on web a
   assert.match(serviceWorker, /chat-shell-v4/);
   assert.match(nativeApp, /scenePhase/);
   assert.match(nativeApp, /privacyCoverVisible = true/);
+  assert.match(nativeApp, /if newPhase != \.active \{\s*privacyCoverVisible = true/);
   assert.match(nativeApp, /PrivacyCoverView/);
   assert.match(nativeApp, /onPrivacyReady/);
   assert.doesNotMatch(nativeApp, /asyncAfter/);
@@ -294,6 +330,10 @@ test("backgrounding synchronously covers and locks private presentation on web a
   assert.match(webView, /app-inactive/);
   assert.match(webView, /WKScriptMessageHandler/);
   assert.match(webView, /privacyReady/);
+  assert.match(webView, /readinessScript/);
+  assert.match(webView, /main\.app-shell \.composer textarea/);
+  assert.match(webView, /dataset\.privateLocked === 'true'/);
+  assert.match(webView, /attempt < 50/);
   assert.match(security, /casual inspection/);
   assert.match(security, /cannot prevent a user from taking a screenshot/);
 });
