@@ -109,11 +109,8 @@ html[data-private-locked="true"] .privacy-shield {
 .welcome-state h1 { margin: 0; color: #303030; font-size: clamp(24px, 6.8vw, 29px); font-weight: 600; letter-spacing: -.035em; line-height: 1.18; }
 
 .knot-mark { width: 45px; height: 45px; display: grid; place-items: center; border-radius: 14px; background: #0d0d0d; color: #fff; }
-.knot-mark svg { width: 31px; height: 31px; }
-.knot-mark path { stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.knot-mark path:first-child { display: none; }
+.knot-art { width: 100%; height: 100%; display: block; border-radius: inherit; background-color: #0a0a0a; background-position: center; background-size: cover; background-repeat: no-repeat; }
 .knot-mark.small { width: 29px; height: 29px; border-radius: 9px; }
-.knot-mark.small svg { width: 22px; height: 22px; }
 
 .message-row { display: flex; margin: 0 0 26px; animation: arrive .2s ease-out both; }
 .message-row.me { justify-content: flex-end; padding-left: 20%; }
