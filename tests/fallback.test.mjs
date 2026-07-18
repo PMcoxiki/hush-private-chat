@@ -9,8 +9,14 @@ import {
   encryptPayload,
 } from "../fallback/src/chat-crypto.ts";
 import {
+  COVER_HISTORY_KEY,
   COVER_MESSAGE_COUNT,
   createCoverMessages,
+  generateCoverReply,
+  groupPrivateMessages,
+  normalizeCoverHistory,
+  selectEmergencyCover,
+  serializeCoverHistory,
 } from "../shared/cover-chat.ts";
 
 const root = new URL("../", import.meta.url);
@@ -79,6 +85,76 @@ test("emergency cover creates a convincing local AI conversation", async () => {
   assert.match(app, /roomSession !== roomSessionRef\.current/);
   assert.match(app, /roomSessionRef\.current \+= 1;/);
   assert.doesNotMatch(app, /transportRef\.current\.send\([^)]*cover/i);
+});
+
+test("local cover engine recognizes varied consultation intents without network access", () => {
+  const prompts = [
+    ["帮我规划三天的复习安排", "plan"],
+    ["如何开始整理家里的书？", "plan"],
+    ["润色这封会议邀请邮件", "rewrite"],
+    ["把这句话换个更自然的说法", "rewrite"],
+    ["翻译成英文：会议推迟到明天", "translate"],
+    ["How would you translate this into Chinese?", "translate"],
+    ["总结这份项目复盘的要点", "summarize"],
+    ["Please summarize the following notes", "summarize"],
+    ["解释一下机会成本是什么", "explain"],
+    ["为什么天空看起来是蓝色的？", "explain"],
+    ["列一个出差前检查清单", "checklist"],
+    ["Give me a checklist for moving house", "checklist"],
+    ["比较纸质书和电子书的优缺点", "compare"],
+    ["React vs Vue 有哪些差异？", "compare"],
+    ["给周末活动想几个创意", "brainstorm"],
+    ["Brainstorm ideas for a small team event", "brainstorm"],
+    ["这段代码报错了", "follow-up"],
+    ["我最近效率不高", "follow-up"],
+    ["准备一场面试要怎么做", "plan"],
+    ["把下面内容提炼成三句话", "summarize"],
+  ];
+
+  const replies = prompts.map(([prompt, intent]) => {
+    const result = generateCoverReply(prompt);
+    assert.equal(result.intent, intent, prompt);
+    assert.ok(result.title.length > 3, prompt);
+    assert.ok(result.text.length > 45, prompt);
+    assert.ok(result.thinkingMs >= 420, prompt);
+    assert.ok(result.streamIntervalMs >= 24, prompt);
+    return result.text;
+  });
+
+  assert.ok(new Set(replies).size >= 18);
+  assert.doesNotMatch(generateCoverReply.toString(), /fetch|XMLHttpRequest|OpenAI|GPT/i);
+});
+
+test("cover history is versioned, capped, and selected without private state", () => {
+  const now = 1_788_000_000_000;
+  const generated = Array.from({ length: 15 }, (_, index) => ({
+    ...selectEmergencyCover([], now - index * 1_000, index),
+    id: `cover-${index}`,
+  }));
+  const parsed = normalizeCoverHistory(JSON.parse(serializeCoverHistory(generated)));
+
+  assert.equal(COVER_HISTORY_KEY, "local-consultations-v2");
+  assert.equal(parsed.length, 12);
+  assert.ok(parsed.every((conversation) => conversation.messages.length >= 8));
+  assert.equal(selectEmergencyCover(parsed, now + 1_000).id, parsed[0].id);
+  assert.deepEqual(normalizeCoverHistory({ version: 1, conversations: generated }), []);
+});
+
+test("private presentation groups cadence while preserving every original segment", () => {
+  const original = [
+    { id: "1", senderId: "me", text: "第一个问题", createdAt: 1 },
+    { id: "2", senderId: "me", text: "补充条件：不要改写", createdAt: 2 },
+    { id: "3", senderId: "peer", text: "第一段原文", createdAt: 3 },
+    { id: "4", senderId: "peer", text: "- 第二段\n```ts\nconst exact = true;\n```", createdAt: 4 },
+    { id: "5", senderId: "me", text: "收到", createdAt: 5 },
+  ];
+  const turns = groupPrivateMessages(original, "me");
+
+  assert.equal(turns.length, 3);
+  assert.deepEqual(turns.map((turn) => turn.role), ["user", "assistant", "user"]);
+  assert.deepEqual(turns.flatMap((turn) => turn.segments), original.map((message) => message.text));
+  assert.match(turns[1].text, /const exact = true/);
+  assert.ok(turns[1].messageIds.includes("4"));
 });
 
 test("all iPhone install surfaces target the configured fallback deployment", async () => {
