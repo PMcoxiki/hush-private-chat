@@ -201,6 +201,35 @@ test("all iPhone install surfaces target the configured fallback deployment", as
   assert.doesNotMatch(`${profileRoute}${profile}${instructions}`, /hush-private-ai\.coxiki\.chatgpt\.site/);
 });
 
+test("defaults every release surface to dark mode while retaining a local light option", async () => {
+  const [layout, fallbackPage, manifestSource, styles, shell, nativeApp, webView, launchColor] = await Promise.all([
+    readFile(new URL("app/layout.tsx", root), "utf8"),
+    readFile(new URL("fallback/index.html", root), "utf8"),
+    readFile(new URL("public/manifest.webmanifest", root), "utf8"),
+    readFile(new URL("shared/chat-shell.css", root), "utf8"),
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
+    readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),
+    readFile(new URL("ios/Hush/ChatWebView.swift", root), "utf8"),
+    readFile(new URL("ios/Hush/Assets.xcassets/LaunchBackground.colorset/Contents.json", root), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestSource);
+  const launch = JSON.parse(launchColor);
+
+  assert.match(layout, /data-theme="dark"/);
+  assert.match(layout, /chatgpt-cover-theme-v1/);
+  assert.match(fallbackPage, /theme-color" content="#212121"/);
+  assert.match(fallbackPage, /black-translucent/);
+  assert.equal(manifest.background_color, "#212121");
+  assert.equal(manifest.theme_color, "#212121");
+  assert.match(styles, /:root \{[\s\S]*color-scheme: dark;/);
+  assert.match(styles, /html\[data-theme="light"\]/);
+  assert.match(shell, /const THEME_STORAGE_KEY = "chatgpt-cover-theme-v1"/);
+  assert.match(shell, /aria-pressed=\{theme === "dark"\}/);
+  assert.match(nativeApp, /preferredColorScheme\(\.dark\)/);
+  assert.match(webView, /UIColor\(red: 33\.0 \/ 255\.0, green: 33\.0 \/ 255\.0, blue: 33\.0 \/ 255\.0/);
+  assert.equal(launch.colors[0].color.components.red, "0.129");
+});
+
 test("native wrapper embeds the current fallback instead of loading a hosted page", async () => {
   const [nativeApp, webView, nativePolicy, project, builtFiles, embeddedFiles] = await Promise.all([
     readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),

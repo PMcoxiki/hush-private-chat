@@ -34,6 +34,7 @@ struct HushApp: App {
                 privacyCoverVisible = true
                 lifecycleRevision += 1
             }
+            .preferredColorScheme(.dark)
         }
     }
 }
