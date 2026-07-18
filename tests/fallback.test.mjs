@@ -49,20 +49,25 @@ test("fallback derives stable rooms and round-trips encrypted payloads", async (
 });
 
 test("fallback uses retained ciphertext transport without the Sites API", async () => {
-  const [app, transport, manifest, workflow] = await Promise.all([
+  const [app, shell, transport, manifest, workflow] = await Promise.all([
     readFile(new URL("fallback/src/App.tsx", root), "utf8"),
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
     readFile(new URL("fallback/src/mqtt-room.ts", root), "utf8"),
     readFile(new URL("public/manifest.webmanifest", root), "utf8"),
     readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
   ]);
-  assert.match(app, /aria-label="ChatGPT 5\.2"/);
-  assert.match(app, /<strong>ChatGPT <span>5\.2<\/span><\/strong>/);
-  assert.match(app, /className="welcome-state"/);
-  assert.match(app, /className="message-actions"/);
-  assert.match(app, /<textarea/);
-  assert.doesNotMatch(app, /className="encryption-note"|<time>/);
-  assert.match(app, /setTimeout\(\(\) => \{/);
-  assert.doesNotMatch(app, /\/api\/messages|OpenAI|ChatGPT.*login/i);
+  assert.match(app, /ChatShell/);
+  assert.match(shell, /aria-label="ChatGPT 模型选择"/);
+  assert.match(shell, /<strong>ChatGPT<\/strong>/);
+  assert.match(shell, /className="welcome-state"/);
+  assert.match(shell, /className="message-actions"/);
+  assert.match(shell, /placeholder="搜索对话"/);
+  assert.match(shell, /attachment-options/);
+  assert.match(shell, /voice-mode/);
+  assert.match(shell, /<textarea/);
+  assert.doesNotMatch(shell, /className="encryption-note"|<time>|ChatGPT 5\.2/);
+  assert.match(shell, /setTimeout\(\(\) => \{/);
+  assert.doesNotMatch(`${app}${shell}`, /\/api\/messages|OpenAI|ChatGPT.*login/i);
   assert.match(transport, /retain: true/);
   assert.match(transport, /broker\.emqx\.io/);
   assert.match(transport, /broker\.hivemq\.com/);
@@ -71,7 +76,7 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
 });
 
 test("emergency cover creates a convincing local AI conversation", async () => {
-  const app = await readFile(new URL("fallback/src/App.tsx", root), "utf8");
+  const app = await readFile(new URL("shared/chat-shell.tsx", root), "utf8");
   const messages = createCoverMessages(1_788_000_000_000);
 
   assert.equal(COVER_MESSAGE_COUNT, 10);
@@ -81,7 +86,7 @@ test("emergency cover creates a convincing local AI conversation", async () => {
   ]);
   assert.ok(messages.every((message, index) => index === 0 || message.createdAt > messages[index - 1].createdAt));
   assert.match(app, /mode === "secret" \? activateCover/);
-  assert.match(app, /setAiMessages\(createCoverMessages\(\)\.map/);
+  assert.match(app, /cover\.activateEmergencyCover\(\)/);
   assert.match(app, /roomSession !== roomSessionRef\.current/);
   assert.match(app, /roomSessionRef\.current \+= 1;/);
   assert.doesNotMatch(app, /transportRef\.current\.send\([^)]*cover/i);
