@@ -241,11 +241,17 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
   ]);
 
   assert.match(nativeApp, /appendingPathComponent\("WebApp", isDirectory: true\)/);
+  assert.match(nativeApp, /URL\(string: "hush:\/\/app\/index\.html"\)/);
   assert.match(nativeApp, /ChatWebView\(/);
-  assert.match(webView, /loadFileURL/);
-  assert.match(webView, /allowingReadAccessTo: AppConfiguration\.webRootURL/);
+  assert.match(webView, /setURLSchemeHandler\(context\.coordinator, forURLScheme: "hush"\)/);
+  assert.match(webView, /WKURLSchemeHandler/);
+  assert.match(webView, /webView\.load\(URLRequest\(url: AppConfiguration\.appURL\)\)/);
+  assert.match(webView, /requestedPath\.hasPrefix\(rootPath \+ "\/"\)/);
+  assert.match(webView, /case "js": "text\/javascript"/);
+  assert.match(webView, /case "css": "text\/css"/);
   assert.match(project, /WebApp in Resources/);
-  assert.doesNotMatch(`${nativeApp}${webView}`, /URL\(string:|pmcoxiki\.github\.io|hush-private-ai/);
+  assert.doesNotMatch(webView, /loadFileURL|allowFileAccessFromFileURLs/);
+  assert.doesNotMatch(`${nativeApp}${webView}`, /URL\(string:\s*"https?:|pmcoxiki\.github\.io|hush-private-ai/);
   assert.doesNotMatch(nativePolicy, /pmcoxiki\.github\.io|WKAppBoundDomains/);
   assert.deepEqual(embeddedFiles, builtFiles);
 
@@ -287,6 +293,7 @@ test("backgrounding synchronously covers and locks private presentation on web a
   assert.match(serviceWorker, /chat-shell-v4/);
   assert.match(nativeApp, /scenePhase/);
   assert.match(nativeApp, /privacyCoverVisible = true/);
+  assert.match(nativeApp, /if newPhase != \.active \{\s*privacyCoverVisible = true/);
   assert.match(nativeApp, /PrivacyCoverView/);
   assert.match(nativeApp, /onPrivacyReady/);
   assert.doesNotMatch(nativeApp, /asyncAfter/);
@@ -294,6 +301,10 @@ test("backgrounding synchronously covers and locks private presentation on web a
   assert.match(webView, /app-inactive/);
   assert.match(webView, /WKScriptMessageHandler/);
   assert.match(webView, /privacyReady/);
+  assert.match(webView, /readinessScript/);
+  assert.match(webView, /main\.app-shell \.composer textarea/);
+  assert.match(webView, /dataset\.privateLocked === 'true'/);
+  assert.match(webView, /attempt < 50/);
   assert.match(security, /casual inspection/);
   assert.match(security, /cannot prevent a user from taking a screenshot/);
 });
