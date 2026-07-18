@@ -19,3 +19,10 @@ AES-GCM ciphertext, but they can still observe timing, message size, IP address,
 and room activity. Retained-message durability is best-effort and public relay
 operators can delete data or stop service without notice. Do not treat this
 fallback as equivalent to Signal Protocol or use it for high-risk conversations.
+
+The concealment layer is intended only to reduce accidental disclosure during
+casual inspection. It does not resist source-code review, network-traffic
+analysis, a compromised device, or forensic examination. Public repository
+names, MQTT metadata, and distributed build sources can reveal the product's
+purpose. iOS can cover app-switcher snapshots when the scene becomes inactive,
+but it cannot prevent a user from taking a screenshot while the app is visible.

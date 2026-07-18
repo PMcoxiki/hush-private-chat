@@ -2,6 +2,9 @@ import SwiftUI
 import WebKit
 
 struct ChatWebView: UIViewRepresentable {
+    let lifecycleRevision: Int
+    let isAppActive: Bool
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -22,9 +25,18 @@ struct ChatWebView: UIViewRepresentable {
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        guard context.coordinator.lifecycleRevision != lifecycleRevision else { return }
+        context.coordinator.lifecycleRevision = lifecycleRevision
+        let eventName = isAppActive ? "app-active" : "app-inactive"
+        webView.evaluateJavaScript(
+            "document.dispatchEvent(new Event('\(eventName)'))"
+        )
+    }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
+        var lifecycleRevision = -1
+
         func webView(
             _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction,

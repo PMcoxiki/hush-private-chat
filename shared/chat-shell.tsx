@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -81,6 +82,18 @@ function mergeMessage(items: UiMessage[], message: UiMessage) {
   return next.sort((a, b) => a.createdAt - b.createdAt);
 }
 
+function showPrivacyShield() {
+  document.documentElement.dataset.privateLocked = "true";
+}
+
+function hidePrivacyShieldAfterPaint() {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      delete document.documentElement.dataset.privateLocked;
+    });
+  });
+}
+
 function ProgressivePrivateText({ text, animate }: { text: string; animate: boolean }) {
   const [visible, setVisible] = useState("");
   const [thinking, setThinking] = useState(true);
@@ -117,6 +130,7 @@ function ProgressivePrivateText({ text, animate }: { text: string; animate: bool
 
 export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProps) {
   const cover = useCoverChat();
+  const activateEmergencyCover = cover.activateEmergencyCover;
   const [mode, setMode] = useState<Mode>("ai");
   const [showGate, setShowGate] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -213,7 +227,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     holdTimer.current = null;
   };
 
-  const clearPrivateState = () => {
+  const clearPrivateState = useCallback(() => {
     roomSessionRef.current += 1;
     transportRef.current?.close();
     transportRef.current = null;
@@ -221,11 +235,12 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     setStatus("offline");
     setSecret("");
     setRevealSecret(false);
-  };
+  }, []);
 
-  const activateCover = () => {
+  const activateCoverState = useCallback((keepShield: boolean) => {
+    showPrivacyShield();
     clearPrivateState();
-    cover.activateEmergencyCover();
+    activateEmergencyCover();
     setMode("ai");
     setDraft("");
     setAttachments([]);
@@ -233,7 +248,42 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     setShowGate(false);
     setShowModels(false);
     setNotice("");
-  };
+    if (!keepShield) hidePrivacyShieldAfterPaint();
+  }, [activateEmergencyCover, clearPrivateState]);
+
+  const activateCover = useCallback(() => {
+    activateCoverState(false);
+  }, [activateCoverState]);
+
+  useEffect(() => {
+    const restoreCover = () => {
+      if (document.visibilityState === "visible") hidePrivacyShieldAfterPaint();
+    };
+    document.addEventListener("visibilitychange", restoreCover);
+    document.addEventListener("app-active", restoreCover);
+    window.addEventListener("pageshow", restoreCover);
+    return () => {
+      document.removeEventListener("visibilitychange", restoreCover);
+      document.removeEventListener("app-active", restoreCover);
+      window.removeEventListener("pageshow", restoreCover);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "secret") return;
+    const lockForBackground = () => {
+      if (document.visibilityState === "hidden") activateCoverState(true);
+    };
+    const lockForPageHide = () => activateCoverState(true);
+    document.addEventListener("visibilitychange", lockForBackground);
+    window.addEventListener("pagehide", lockForPageHide);
+    document.addEventListener("app-inactive", lockForPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", lockForBackground);
+      window.removeEventListener("pagehide", lockForPageHide);
+      document.removeEventListener("app-inactive", lockForPageHide);
+    };
+  }, [activateCoverState, mode]);
 
   const unlock = async (event: FormEvent) => {
     event.preventDefault();
@@ -383,6 +433,11 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   return (
     <main className="app-shell">
       <section className="phone-app" aria-label="ChatGPT 移动对话">
+        <div className="privacy-shield" aria-hidden="true">
+          <div className="privacy-topbar"><MenuIcon /><strong>ChatGPT</strong><ComposeIcon /></div>
+          <div className="privacy-welcome"><KnotMark /><h1>有什么可以帮忙的？</h1></div>
+          <div className="privacy-composer"><PlusIcon /><span>询问任何问题</span><WaveIcon /></div>
+        </div>
         <header className="topbar">
           <button className="icon-button" aria-label="打开侧边栏" onClick={handleMenu}><MenuIcon /></button>
           <button
