@@ -17,7 +17,10 @@ struct HushApp: App {
             ZStack {
                 ChatWebView(
                     lifecycleRevision: lifecycleRevision,
-                    isAppActive: scenePhase == .active
+                    isAppActive: scenePhase == .active,
+                    onPrivacyReady: {
+                        if scenePhase == .active { privacyCoverVisible = false }
+                    }
                 )
                 .ignoresSafeArea(.container, edges: .bottom)
 
@@ -27,23 +30,10 @@ struct HushApp: App {
                         .zIndex(10)
                 }
             }
-            .onAppear {
-                if scenePhase == .active { revealWebContent() }
-            }
-            .onChange(of: scenePhase) { phase in
+            .onChange(of: scenePhase) { _ in
+                privacyCoverVisible = true
                 lifecycleRevision += 1
-                if phase == .active {
-                    revealWebContent()
-                } else {
-                    privacyCoverVisible = true
-                }
             }
-        }
-    }
-
-    private func revealWebContent() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-            if scenePhase == .active { privacyCoverVisible = false }
         }
     }
 }

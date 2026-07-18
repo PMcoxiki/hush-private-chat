@@ -16,6 +16,7 @@ const openPrivateRoom: ChatShellProps["openPrivateRoom"] = async (secret, sender
   const derived = await deriveRoom(secret);
   let active = true;
   let timer = 0;
+  const pendingRequests = new Set<AbortController>();
 
   const sync = async () => {
     try {
@@ -51,22 +52,34 @@ const openPrivateRoom: ChatShellProps["openPrivateRoom"] = async (secret, sender
     close: () => {
       active = false;
       window.clearInterval(timer);
+      for (const controller of pendingRequests) controller.abort();
+      pendingRequests.clear();
     },
     send: async (text) => {
+      if (!active) throw new Error("Room closed");
       const encrypted = await encryptMessage(derived.key, text);
-      const response = await fetch("/api/messages", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          room: derived.room,
-          senderId,
-          cipherText: encrypted.cipherText,
-          iv: encrypted.iv,
-        }),
-      });
-      if (!response.ok) throw new Error("Message rejected");
-      const result = (await response.json()) as { id: string; createdAt: number };
-      return { id: result.id, senderId, text, createdAt: result.createdAt };
+      if (!active) throw new Error("Room closed");
+      const controller = new AbortController();
+      pendingRequests.add(controller);
+      try {
+        const response = await fetch("/api/messages", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            room: derived.room,
+            senderId,
+            cipherText: encrypted.cipherText,
+            iv: encrypted.iv,
+          }),
+          signal: controller.signal,
+        });
+        if (!response.ok || !active) throw new Error("Message rejected");
+        const result = (await response.json()) as { id: string; createdAt: number };
+        if (!active) throw new Error("Room closed");
+        return { id: result.id, senderId, text, createdAt: result.createdAt };
+      } finally {
+        pendingRequests.delete(controller);
+      }
     },
   };
 };

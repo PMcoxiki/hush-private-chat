@@ -6,11 +6,13 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { groupPrivateMessages, type CoverModel } from "./cover-chat";
+import { settleSessionOperation } from "./private-session";
 import { RichText, ThinkingDots } from "./rich-text";
 import { useCoverChat } from "./use-cover-chat";
 
@@ -83,10 +85,22 @@ function showPrivacyShield() {
   document.documentElement.dataset.privateLocked = "true";
 }
 
+function notifyNativePrivacyReady() {
+  const nativeWindow = window as Window & {
+    webkit?: {
+      messageHandlers?: {
+        privacyReady?: { postMessage: (message: string) => void };
+      };
+    };
+  };
+  nativeWindow.webkit?.messageHandlers?.privacyReady?.postMessage("cover-ready");
+}
+
 function hidePrivacyShieldAfterPaint() {
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
       delete document.documentElement.dataset.privateLocked;
+      notifyNativePrivacyReady();
     });
   });
 }
@@ -150,6 +164,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const holdTriggered = useRef(false);
   const transportRef = useRef<PrivateRoomSession | null>(null);
   const roomSessionRef = useRef(0);
+  const privateExposureRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -207,6 +222,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     if (holdTimer.current) clearTimeout(holdTimer.current);
     holdTimer.current = setTimeout(() => {
       holdTriggered.current = true;
+      privateExposureRef.current = true;
       setShowModels(false);
       setShowGate(true);
       navigator.vibrate?.(20);
@@ -226,12 +242,17 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
   const clearPrivateState = useCallback(() => {
     roomSessionRef.current += 1;
+    privateExposureRef.current = false;
     transportRef.current?.close();
     transportRef.current = null;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     setMessages([]);
     setStatus("offline");
     setSecret("");
     setRevealSecret(false);
+    setGateBusy(false);
+    setGateError("");
+    setShowGate(false);
   }, []);
 
   const activateCoverState = useCallback((keepShield: boolean) => {
@@ -242,7 +263,6 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     setDraft("");
     setAttachments([]);
     setShowSidebar(false);
-    setShowGate(false);
     setShowModels(false);
     setNotice("");
     if (!keepShield) hidePrivacyShieldAfterPaint();
@@ -252,35 +272,40 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     activateCoverState(false);
   }, [activateCoverState]);
 
+  const lockPrivateForLifecycle = useEffectEvent((keepShield: boolean) => {
+    activateCoverState(keepShield);
+  });
+
   useEffect(() => {
-    const restoreCover = () => {
-      if (document.visibilityState === "visible") hidePrivacyShieldAfterPaint();
+    const lockForBackground = () => {
+      if (document.visibilityState === "hidden" && privateExposureRef.current) {
+        lockPrivateForLifecycle(true);
+      }
     };
+    const lockForPageHide = () => {
+      if (privateExposureRef.current) lockPrivateForLifecycle(true);
+    };
+    const restoreCover = () => {
+      if (document.visibilityState !== "visible") return;
+      if (privateExposureRef.current) lockPrivateForLifecycle(false);
+      else hidePrivacyShieldAfterPaint();
+    };
+    document.addEventListener("visibilitychange", lockForBackground);
     document.addEventListener("visibilitychange", restoreCover);
+    window.addEventListener("pagehide", lockForPageHide);
+    document.addEventListener("app-inactive", lockForPageHide);
     document.addEventListener("app-active", restoreCover);
     window.addEventListener("pageshow", restoreCover);
+    restoreCover();
     return () => {
+      document.removeEventListener("visibilitychange", lockForBackground);
       document.removeEventListener("visibilitychange", restoreCover);
+      window.removeEventListener("pagehide", lockForPageHide);
+      document.removeEventListener("app-inactive", lockForPageHide);
       document.removeEventListener("app-active", restoreCover);
       window.removeEventListener("pageshow", restoreCover);
     };
   }, []);
-
-  useEffect(() => {
-    if (mode !== "secret") return;
-    const lockForBackground = () => {
-      if (document.visibilityState === "hidden") activateCoverState(true);
-    };
-    const lockForPageHide = () => activateCoverState(true);
-    document.addEventListener("visibilitychange", lockForBackground);
-    window.addEventListener("pagehide", lockForPageHide);
-    document.addEventListener("app-inactive", lockForPageHide);
-    return () => {
-      document.removeEventListener("visibilitychange", lockForBackground);
-      window.removeEventListener("pagehide", lockForPageHide);
-      document.removeEventListener("app-inactive", lockForPageHide);
-    };
-  }, [activateCoverState, mode]);
 
   const unlock = async (event: FormEvent) => {
     event.preventDefault();
@@ -289,14 +314,16 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
       setGateError("访问令牌至少需要 16 个字符");
       return;
     }
+    privateExposureRef.current = true;
     setGateBusy(true);
     setGateError("");
-    try {
-      const roomSession = ++roomSessionRef.current;
-      transportRef.current?.close();
-      setMessages([]);
-      setStatus("connecting");
-      transportRef.current = await openPrivateRoom(normalized, senderId, {
+    const roomSession = ++roomSessionRef.current;
+    transportRef.current?.close();
+    transportRef.current = null;
+    setMessages([]);
+    setStatus("connecting");
+    const result = await settleSessionOperation(
+      Promise.resolve().then(() => openPrivateRoom(normalized, senderId, {
         onStatus: (nextStatus) => {
           if (roomSession !== roomSessionRef.current) return;
           setStatus(nextStatus);
@@ -309,16 +336,33 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
             sender: message.senderId === senderId ? "me" : "them",
           }));
         },
-      });
-      setMode("secret");
-      setShowGate(false);
-      setSecret("");
-      setRevealSecret(false);
-    } catch {
-      setGateError("无法完成诊断，请稍后重试");
-    } finally {
-      setGateBusy(false);
+      })),
+      roomSession,
+      () => roomSessionRef.current,
+    );
+
+    if (!result.current) {
+      if (result.status === "fulfilled") result.value.close();
+      return;
     }
+    if (result.status === "rejected") {
+      setGateError("无法完成诊断，请稍后重试");
+      setGateBusy(false);
+      return;
+    }
+    if (document.visibilityState === "hidden") {
+      result.value.close();
+      activateCoverState(true);
+      return;
+    }
+
+    transportRef.current = result.value;
+    privateExposureRef.current = true;
+    setMode("secret");
+    setShowGate(false);
+    setSecret("");
+    setRevealSecret(false);
+    setGateBusy(false);
   };
 
   const startNewChat = () => {
@@ -340,6 +384,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   };
 
   const makeSecret = () => {
+    privateExposureRef.current = true;
     setSecret(createSharedSecret());
     setRevealSecret(true);
     setGateError("");
@@ -404,10 +449,19 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
       return;
     }
     setDraft("");
+    const roomSession = roomSessionRef.current;
+    const activeTransport = transportRef.current;
     try {
-      const message = await transportRef.current.send(text);
-      setMessages((items) => mergeMessage(items, { ...message, sender: "me" }));
+      const result = await settleSessionOperation(
+        activeTransport.send(text),
+        roomSession,
+        () => roomSessionRef.current,
+      );
+      if (!result.current) return;
+      if (result.status === "rejected") throw result.error;
+      setMessages((items) => mergeMessage(items, { ...result.value, sender: "me" }));
     } catch {
+      if (roomSession !== roomSessionRef.current) return;
       setDraft(text);
       setNotice("暂时无法生成，请稍后再试");
     }
@@ -524,7 +578,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
         {showSettings ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowSettings(false)}><section className="option-sheet settings-sheet"><div className="sheet-handle" /><h2>设置与帮助</h2><div className="settings-row"><span>回答模式</span><strong>{MODEL_OPTIONS.find((option) => option.id === cover.selectedModel)?.label}</strong></div><div className="settings-row"><span>对话存储</span><strong>仅限本机</strong></div><p>普通咨询记录最多保留 12 条。回答由本地规则生成，断网也能使用。</p><button type="button" className="sheet-done" onClick={() => { setShowSettings(false); setShowSidebar(false); }}>完成</button></section></div> : null}
 
-        {showGate ? <div className="gate-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !gateBusy && setShowGate(false)}><form className="gate" onSubmit={unlock}><div className="sheet-handle" /><div className="lock-mark" aria-hidden="true">⌁</div><h2>模型诊断</h2><p>输入诊断访问令牌</p><div className="secret-field"><input autoFocus type={revealSecret ? "text" : "password"} value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="访问令牌" autoComplete="off" spellCheck={false} /><button type="button" onClick={() => setRevealSecret((value) => !value)}>{revealSecret ? "隐藏" : "显示"}</button></div><div className="token-actions"><button type="button" onClick={makeSecret}>生成访问令牌</button><button type="button" onClick={copySecret} disabled={!secret}>复制</button></div>{gateError ? <div className="gate-error">{gateError}</div> : null}<button type="submit" disabled={gateBusy}>{gateBusy ? "正在诊断…" : "开始诊断"}</button><button type="button" className="cancel" onClick={() => setShowGate(false)} disabled={gateBusy}>取消</button></form></div> : null}
+        {showGate ? <div className="gate-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !gateBusy && clearPrivateState()}><form className="gate" onSubmit={unlock}><div className="sheet-handle" /><div className="lock-mark" aria-hidden="true">⌁</div><h2>模型诊断</h2><p>输入诊断访问令牌</p><div className="secret-field"><input autoFocus type={revealSecret ? "text" : "password"} value={secret} onChange={(event) => { privateExposureRef.current = true; setSecret(event.target.value); }} placeholder="访问令牌" autoComplete="off" spellCheck={false} /><button type="button" onClick={() => setRevealSecret((value) => !value)}>{revealSecret ? "隐藏" : "显示"}</button></div><div className="token-actions"><button type="button" onClick={makeSecret}>生成访问令牌</button><button type="button" onClick={copySecret} disabled={!secret}>复制</button></div>{gateError ? <div className="gate-error">{gateError}</div> : null}<button type="submit" disabled={gateBusy}>{gateBusy ? "正在诊断…" : "开始诊断"}</button><button type="button" className="cancel" onClick={clearPrivateState} disabled={gateBusy}>取消</button></form></div> : null}
       </section>
     </main>
   );

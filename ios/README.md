@@ -15,9 +15,9 @@ Development team, change the bundle identifier if needed, then Archive. For a
 friend's device use an Ad Hoc provisioning profile containing that device UDID,
 TestFlight, or let them sign the unsigned archive with AltStore/Sideloadly.
 
-Do not distribute a build under the ChatGPT name or icon publicly; this private
-prototype mimics the interface only as requested and is not affiliated with
-OpenAI.
+Do not claim that this prototype is an official OpenAI client. Public packages
+use an independently designed knot icon; the ChatGPT-style cover label is only
+a visual disguise and does not indicate affiliation with or access to OpenAI.
 
 ## Cloud unsigned build
 
