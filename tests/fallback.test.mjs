@@ -8,6 +8,10 @@ import {
   deriveRoom,
   encryptPayload,
 } from "../fallback/src/chat-crypto.ts";
+import {
+  COVER_MESSAGE_COUNT,
+  createCoverMessages,
+} from "../shared/cover-chat.ts";
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -58,6 +62,23 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
   assert.match(transport, /broker\.hivemq\.com/);
   assert.equal(JSON.parse(manifest).start_url, ".");
   assert.match(workflow, /deploy-pages@v4/);
+});
+
+test("emergency cover creates a convincing local AI conversation", async () => {
+  const app = await readFile(new URL("fallback/src/App.tsx", root), "utf8");
+  const messages = createCoverMessages(1_788_000_000_000);
+
+  assert.equal(COVER_MESSAGE_COUNT, 10);
+  assert.equal(messages.length, COVER_MESSAGE_COUNT);
+  assert.deepEqual(messages.map((message) => message.sender), [
+    "me", "them", "me", "them", "me", "them", "me", "them", "me", "them",
+  ]);
+  assert.ok(messages.every((message, index) => index === 0 || message.createdAt > messages[index - 1].createdAt));
+  assert.match(app, /mode === "secret" \? activateCover/);
+  assert.match(app, /setAiMessages\(createCoverMessages\(\)\.map/);
+  assert.match(app, /roomSession !== roomSessionRef\.current/);
+  assert.match(app, /roomSessionRef\.current \+= 1;/);
+  assert.doesNotMatch(app, /transportRef\.current\.send\([^)]*cover/i);
 });
 
 test("all iPhone install surfaces target the configured fallback deployment", async () => {

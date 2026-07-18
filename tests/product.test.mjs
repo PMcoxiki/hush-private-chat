@@ -16,6 +16,8 @@ test("renders the ChatGPT-style mobile shell", async () => {
   assert.match(page, /<strong>ChatGPT <span>5\.2<\/span><\/strong>/);
   assert.match(page, /有什么可以帮忙的？/);
   assert.match(page, /className="message-actions"/);
+  assert.match(page, /mode === "secret" \? activateCover/);
+  assert.match(page, /setAiMessages\(createCoverMessages\(\)\)/);
   assert.match(page, /<textarea/);
   assert.match(styles, /\.me \.bubble/);
   assert.doesNotMatch(page, /className="encryption-note"|<time>/);
