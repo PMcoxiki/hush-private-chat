@@ -169,7 +169,8 @@ function titleFor(prompt: string, intent: CoverIntent) {
     brainstorm: "创意构思",
     "follow-up": "问题梳理",
   };
-  return clip(`${prefixes[intent]}：${topic}`, 26);
+  const prefix = prefixes[intent];
+  return clip(topic.startsWith(prefix) ? topic : `${prefix}：${topic}`, 26);
 }
 
 function detectIntent(prompt: string): CoverIntent {
