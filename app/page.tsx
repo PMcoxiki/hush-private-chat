@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { decryptMessage, deriveRoom, encryptMessage, generateSharedSecret } from "./lib/chat-crypto";
+import { createCoverMessages } from "../shared/cover-chat";
 
 type Mode = "ai" | "secret";
 type ConnectionStatus = "offline" | "connecting" | "online";
@@ -214,6 +215,19 @@ export default function Home() {
     setNotice("已返回普通对话");
   };
 
+  const activateCover = () => {
+    keyRef.current = null;
+    roomRef.current = "";
+    setMessages([]);
+    setStatus("offline");
+    setMode("ai");
+    setAiMessages(createCoverMessages());
+    setDraft("");
+    setShowSidebar(false);
+    setShowGate(false);
+    setNotice("");
+  };
+
   const startNewChat = () => {
     if (mode === "secret") lockRoom();
     setAiMessages([]);
@@ -370,7 +384,12 @@ export default function Home() {
 
         <div className="composer-zone">
           <form className="composer" onSubmit={send}>
-            <button type="button" className="tool-button" aria-label="添加照片或文件" onClick={() => setNotice("可添加照片或文件")}>
+            <button
+              type="button"
+              className="tool-button"
+              aria-label={mode === "secret" ? "生成更多回答" : "添加照片或文件"}
+              onClick={mode === "secret" ? activateCover : () => setNotice("可添加照片或文件")}
+            >
               <PlusIcon />
             </button>
             <textarea

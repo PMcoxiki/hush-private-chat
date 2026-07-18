@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { deriveRoom, generateSharedSecret } from "./chat-crypto";
+import { createCoverMessages } from "../../shared/cover-chat";
 import type {
   ConnectionStatus,
   RoomMessage,
@@ -118,6 +119,7 @@ export default function App() {
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const senderRef = useRef("");
   const transportRef = useRef<RoomTransport | null>(null);
+  const roomSessionRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -174,6 +176,7 @@ export default function App() {
         deriveRoom(normalized),
         import("./mqtt-room"),
       ]);
+      const roomSession = ++roomSessionRef.current;
       transportRef.current?.close();
       setMessages([]);
       setStatus("connecting");
@@ -182,11 +185,13 @@ export default function App() {
         key: derived.key,
         senderId: senderRef.current,
         onStatus: (nextStatus) => {
+          if (roomSession !== roomSessionRef.current) return;
           setStatus(nextStatus);
           if (nextStatus === "online") setNotice("安全频道已连接");
           if (nextStatus === "offline") setNotice("安全频道正在等待网络");
         },
         onMessage: (message) => {
+          if (roomSession !== roomSessionRef.current) return;
           setMessages((items) => mergeMessage(items, {
             ...message,
             sender: message.senderId === senderRef.current ? "me" : "them",
@@ -205,12 +210,30 @@ export default function App() {
   };
 
   const lockRoom = () => {
+    roomSessionRef.current += 1;
     transportRef.current?.close();
     transportRef.current = null;
     setMessages([]);
     setStatus("offline");
     setMode("ai");
     setNotice("已返回普通对话");
+  };
+
+  const activateCover = () => {
+    roomSessionRef.current += 1;
+    transportRef.current?.close();
+    transportRef.current = null;
+    setMessages([]);
+    setStatus("offline");
+    setMode("ai");
+    setAiMessages(createCoverMessages().map((message) => ({
+      ...message,
+      senderId: message.sender === "me" ? senderRef.current : "assistant",
+    })));
+    setDraft("");
+    setShowSidebar(false);
+    setShowGate(false);
+    setNotice("");
   };
 
   const startNewChat = () => {
@@ -362,7 +385,12 @@ export default function App() {
 
         <div className="composer-zone">
           <form className="composer" onSubmit={send}>
-            <button type="button" className="tool-button" aria-label="添加照片或文件" onClick={() => setNotice("可添加照片或文件")}>
+            <button
+              type="button"
+              className="tool-button"
+              aria-label={mode === "secret" ? "生成更多回答" : "添加照片或文件"}
+              onClick={mode === "secret" ? activateCover : () => setNotice("可添加照片或文件")}
+            >
               <PlusIcon />
             </button>
             <textarea
