@@ -17,6 +17,7 @@ import { RichText, ThinkingDots } from "./rich-text";
 import { useCoverChat } from "./use-cover-chat";
 
 type Mode = "ai" | "secret";
+type Theme = "dark" | "light";
 export type ConnectionStatus = "offline" | "connecting" | "online";
 export type PrivateMessage = { id: string; senderId: string; text: string; createdAt: number };
 export type PrivateRoomSession = {
@@ -37,6 +38,8 @@ export type ChatShellProps = {
 };
 type UiMessage = PrivateMessage & { sender: "me" | "them" };
 type LocalAttachment = { id: string; name: string; kind: "photo" | "file" };
+
+const THEME_STORAGE_KEY = "chatgpt-cover-theme-v1";
 
 const MODEL_OPTIONS: ReadonlyArray<{ id: CoverModel; label: string; description: string }> = [
   { id: "auto", label: "自动", description: "根据问题自动调整回答方式" },
@@ -105,6 +108,24 @@ function hidePrivacyShieldAfterPaint() {
   });
 }
 
+function applyDocumentTheme(theme: Theme) {
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute("content", theme === "dark" ? "#212121" : "#ffffff");
+}
+
+function readInitialTheme(): Theme {
+  if (typeof document === "undefined") return "dark";
+  try {
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    if (storedTheme === "light" || storedTheme === "dark") return storedTheme;
+  } catch {
+    // Storage can be unavailable in restricted browser modes.
+  }
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
+}
+
 function ProgressivePrivateText({ text, animate }: { text: string; animate: boolean }) {
   const [visible, setVisible] = useState("");
   const [thinking, setThinking] = useState(true);
@@ -149,6 +170,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const [showAttachments, setShowAttachments] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [theme, setTheme] = useState<Theme>(readInitialTheme);
   const [secret, setSecret] = useState("");
   const [revealSecret, setRevealSecret] = useState(false);
   const [gateBusy, setGateBusy] = useState(false);
@@ -400,6 +422,16 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     }
   };
 
+  const selectTheme = (nextTheme: Theme) => {
+    applyDocumentTheme(nextTheme);
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch {
+      // The selected theme still applies for the current session.
+    }
+  };
+
   const copyMessage = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -576,7 +608,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
         {showVoice ? <section className="voice-mode" aria-label="语音模式"><button type="button" className="voice-close" aria-label="关闭语音模式" onClick={() => setShowVoice(false)}><CloseIcon /></button><KnotMark /><p>正在聆听</p><div className="voice-bars" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <i key={index} />)}</div><small>在本机等待语音输入</small><button type="button" className="voice-end" onClick={() => setShowVoice(false)}>结束</button></section> : null}
 
-        {showSettings ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowSettings(false)}><section className="option-sheet settings-sheet"><div className="sheet-handle" /><h2>设置与帮助</h2><div className="settings-row"><span>回答模式</span><strong>{MODEL_OPTIONS.find((option) => option.id === cover.selectedModel)?.label}</strong></div><div className="settings-row"><span>对话存储</span><strong>仅限本机</strong></div><p>普通咨询记录最多保留 12 条。回答由本地规则生成，断网也能使用。</p><button type="button" className="sheet-done" onClick={() => { setShowSettings(false); setShowSidebar(false); }}>完成</button></section></div> : null}
+        {showSettings ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowSettings(false)}><section className="option-sheet settings-sheet"><div className="sheet-handle" /><h2>设置与帮助</h2><div className="settings-row"><span>回答模式</span><strong>{MODEL_OPTIONS.find((option) => option.id === cover.selectedModel)?.label}</strong></div><div className="settings-row"><span>外观</span><div className="theme-options" role="group" aria-label="外观模式"><button type="button" aria-pressed={theme === "dark"} onClick={() => selectTheme("dark")}>深色</button><button type="button" aria-pressed={theme === "light"} onClick={() => selectTheme("light")}>浅色</button></div></div><div className="settings-row"><span>对话存储</span><strong>仅限本机</strong></div><p>普通咨询记录最多保留 12 条。回答由本地规则生成，断网也能使用。</p><button type="button" className="sheet-done" onClick={() => { setShowSettings(false); setShowSidebar(false); }}>完成</button></section></div> : null}
 
         {showGate ? <div className="gate-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !gateBusy && clearPrivateState()}><form className="gate" onSubmit={unlock}><div className="sheet-handle" /><div className="lock-mark" aria-hidden="true">⌁</div><h2>模型诊断</h2><p>输入诊断访问令牌</p><div className="secret-field"><input autoFocus type={revealSecret ? "text" : "password"} value={secret} onChange={(event) => { privateExposureRef.current = true; setSecret(event.target.value); }} placeholder="访问令牌" autoComplete="off" spellCheck={false} /><button type="button" onClick={() => setRevealSecret((value) => !value)}>{revealSecret ? "隐藏" : "显示"}</button></div><div className="token-actions"><button type="button" onClick={makeSecret}>生成访问令牌</button><button type="button" onClick={copySecret} disabled={!secret}>复制</button></div>{gateError ? <div className="gate-error">{gateError}</div> : null}<button type="submit" disabled={gateBusy}>{gateBusy ? "正在诊断…" : "开始诊断"}</button><button type="button" className="cancel" onClick={clearPrivateState} disabled={gateBusy}>取消</button></form></div> : null}
       </section>
