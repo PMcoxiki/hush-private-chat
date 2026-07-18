@@ -9,9 +9,16 @@ import {
   encryptPayload,
 } from "../fallback/src/chat-crypto.ts";
 import {
+  COVER_HISTORY_KEY,
   COVER_MESSAGE_COUNT,
   createCoverMessages,
+  generateCoverReply,
+  groupPrivateMessages,
+  normalizeCoverHistory,
+  selectEmergencyCover,
+  serializeCoverHistory,
 } from "../shared/cover-chat.ts";
+import { settleSessionOperation } from "../shared/private-session.ts";
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -43,20 +50,25 @@ test("fallback derives stable rooms and round-trips encrypted payloads", async (
 });
 
 test("fallback uses retained ciphertext transport without the Sites API", async () => {
-  const [app, transport, manifest, workflow] = await Promise.all([
+  const [app, shell, transport, manifest, workflow] = await Promise.all([
     readFile(new URL("fallback/src/App.tsx", root), "utf8"),
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
     readFile(new URL("fallback/src/mqtt-room.ts", root), "utf8"),
     readFile(new URL("public/manifest.webmanifest", root), "utf8"),
     readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
   ]);
-  assert.match(app, /aria-label="ChatGPT 5\.2"/);
-  assert.match(app, /<strong>ChatGPT <span>5\.2<\/span><\/strong>/);
-  assert.match(app, /className="welcome-state"/);
-  assert.match(app, /className="message-actions"/);
-  assert.match(app, /<textarea/);
-  assert.doesNotMatch(app, /className="encryption-note"|<time>/);
-  assert.match(app, /setTimeout\(\(\) => \{/);
-  assert.doesNotMatch(app, /\/api\/messages|OpenAI|ChatGPT.*login/i);
+  assert.match(app, /ChatShell/);
+  assert.match(shell, /aria-label="ChatGPT 模型选择"/);
+  assert.match(shell, /<strong>ChatGPT<\/strong>/);
+  assert.match(shell, /className="welcome-state"/);
+  assert.match(shell, /className="message-actions"/);
+  assert.match(shell, /placeholder="搜索对话"/);
+  assert.match(shell, /attachment-options/);
+  assert.match(shell, /voice-mode/);
+  assert.match(shell, /<textarea/);
+  assert.doesNotMatch(shell, /className="encryption-note"|<time>|ChatGPT 5\.2/);
+  assert.match(shell, /setTimeout\(\(\) => \{/);
+  assert.doesNotMatch(`${app}${shell}`, /\/api\/messages|OpenAI|ChatGPT.*login/i);
   assert.match(transport, /retain: true/);
   assert.match(transport, /broker\.emqx\.io/);
   assert.match(transport, /broker\.hivemq\.com/);
@@ -65,7 +77,7 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
 });
 
 test("emergency cover creates a convincing local AI conversation", async () => {
-  const app = await readFile(new URL("fallback/src/App.tsx", root), "utf8");
+  const app = await readFile(new URL("shared/chat-shell.tsx", root), "utf8");
   const messages = createCoverMessages(1_788_000_000_000);
 
   assert.equal(COVER_MESSAGE_COUNT, 10);
@@ -75,10 +87,104 @@ test("emergency cover creates a convincing local AI conversation", async () => {
   ]);
   assert.ok(messages.every((message, index) => index === 0 || message.createdAt > messages[index - 1].createdAt));
   assert.match(app, /mode === "secret" \? activateCover/);
-  assert.match(app, /setAiMessages\(createCoverMessages\(\)\.map/);
+  assert.match(app, /activateEmergencyCover\(\)/);
   assert.match(app, /roomSession !== roomSessionRef\.current/);
   assert.match(app, /roomSessionRef\.current \+= 1;/);
   assert.doesNotMatch(app, /transportRef\.current\.send\([^)]*cover/i);
+});
+
+test("local cover engine recognizes varied consultation intents without network access", () => {
+  const prompts = [
+    ["帮我规划三天的复习安排", "plan"],
+    ["如何开始整理家里的书？", "plan"],
+    ["润色这封会议邀请邮件", "rewrite"],
+    ["把这句话换个更自然的说法", "rewrite"],
+    ["翻译成英文：会议推迟到明天", "translate"],
+    ["How would you translate this into Chinese?", "translate"],
+    ["总结这份项目复盘的要点", "summarize"],
+    ["Please summarize the following notes", "summarize"],
+    ["解释一下机会成本是什么", "explain"],
+    ["为什么天空看起来是蓝色的？", "explain"],
+    ["列一个出差前检查清单", "checklist"],
+    ["Give me a checklist for moving house", "checklist"],
+    ["比较纸质书和电子书的优缺点", "compare"],
+    ["React vs Vue 有哪些差异？", "compare"],
+    ["给周末活动想几个创意", "brainstorm"],
+    ["Brainstorm ideas for a small team event", "brainstorm"],
+    ["这段代码报错了", "follow-up"],
+    ["我最近效率不高", "follow-up"],
+    ["准备一场面试要怎么做", "plan"],
+    ["把下面内容提炼成三句话", "summarize"],
+  ];
+
+  const replies = prompts.map(([prompt, intent]) => {
+    const result = generateCoverReply(prompt);
+    assert.equal(result.intent, intent, prompt);
+    assert.ok(result.title.length > 3, prompt);
+    assert.ok(result.text.length > 45, prompt);
+    assert.ok(result.thinkingMs >= 420, prompt);
+    assert.ok(result.streamIntervalMs >= 24, prompt);
+    return result.text;
+  });
+
+  assert.ok(new Set(replies).size >= 18);
+  assert.doesNotMatch(generateCoverReply.toString(), /fetch|XMLHttpRequest|OpenAI|GPT/i);
+});
+
+test("cover history is versioned, capped, and selected without private state", () => {
+  const now = 1_788_000_000_000;
+  const generated = Array.from({ length: 15 }, (_, index) => ({
+    ...selectEmergencyCover([], now - index * 1_000, index),
+    id: `cover-${index}`,
+  }));
+  const parsed = normalizeCoverHistory(JSON.parse(serializeCoverHistory(generated)));
+
+  assert.equal(COVER_HISTORY_KEY, "local-consultations-v2");
+  assert.equal(parsed.length, 12);
+  assert.ok(parsed.every((conversation) => conversation.messages.length >= 8));
+  assert.equal(selectEmergencyCover(parsed, now + 1_000).id, parsed[0].id);
+  assert.deepEqual(normalizeCoverHistory({ version: 1, conversations: generated }), []);
+});
+
+test("private presentation groups cadence while preserving every original segment", () => {
+  const original = [
+    { id: "1", senderId: "me", text: "第一个问题", createdAt: 1 },
+    { id: "2", senderId: "me", text: "补充条件：不要改写", createdAt: 2 },
+    { id: "3", senderId: "peer", text: "第一段原文", createdAt: 3 },
+    { id: "4", senderId: "peer", text: "- 第二段\n```ts\nconst exact = true;\n```", createdAt: 4 },
+    { id: "5", senderId: "me", text: "收到", createdAt: 5 },
+  ];
+  const turns = groupPrivateMessages(original, "me");
+
+  assert.equal(turns.length, 3);
+  assert.deepEqual(turns.map((turn) => turn.role), ["user", "assistant", "user"]);
+  assert.deepEqual(turns.flatMap((turn) => turn.segments), original.map((message) => message.text));
+  assert.match(turns[1].text, /const exact = true/);
+  assert.ok(turns[1].messageIds.includes("4"));
+});
+
+test("stale private operations cannot revive plaintext after a lock", async () => {
+  let currentSession = 7;
+  let resolveSend;
+  const pendingSend = new Promise((resolve) => { resolveSend = resolve; });
+  const sendResult = settleSessionOperation(pendingSend, currentSession, () => currentSession);
+
+  currentSession += 1;
+  resolveSend({ text: "must not return to the cover" });
+  assert.deepEqual(await sendResult, {
+    status: "fulfilled",
+    value: { text: "must not return to the cover" },
+    current: false,
+  });
+
+  let rejectUnlock;
+  const pendingUnlock = new Promise((resolve, reject) => { rejectUnlock = reject; });
+  const unlockResult = settleSessionOperation(pendingUnlock, currentSession, () => currentSession);
+  currentSession += 1;
+  rejectUnlock(new Error("late room failure"));
+  const settledUnlock = await unlockResult;
+  assert.equal(settledUnlock.status, "rejected");
+  assert.equal(settledUnlock.current, false);
 });
 
 test("all iPhone install surfaces target the configured fallback deployment", async () => {
@@ -106,7 +212,7 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
   ]);
 
   assert.match(nativeApp, /appendingPathComponent\("WebApp", isDirectory: true\)/);
-  assert.match(nativeApp, /ChatWebView\(\)/);
+  assert.match(nativeApp, /ChatWebView\(/);
   assert.match(webView, /loadFileURL/);
   assert.match(webView, /allowingReadAccessTo: AppConfiguration\.webRootURL/);
   assert.match(project, /WebApp in Resources/);
@@ -121,6 +227,46 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
     ]);
     assert.deepEqual(embedded, built, `stale embedded iOS asset: ${relative}`);
   }
+});
+
+test("backgrounding synchronously covers and locks private presentation on web and iOS", async () => {
+  const [shell, sitesRoom, styles, serviceWorker, nativeApp, webView, security] = await Promise.all([
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("shared/chat-shell.css", root), "utf8"),
+    readFile(new URL("public/sw.js", root), "utf8"),
+    readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),
+    readFile(new URL("ios/Hush/ChatWebView.swift", root), "utf8"),
+    readFile(new URL("SECURITY.md", root), "utf8"),
+  ]);
+
+  assert.match(shell, /document\.documentElement\.dataset\.privateLocked = "true"/);
+  assert.match(shell, /visibilitychange/);
+  assert.match(shell, /pagehide/);
+  assert.match(shell, /app-inactive/);
+  assert.doesNotMatch(shell, /if \(mode !== "secret"\) return;/);
+  assert.match(shell, /useEffectEvent/);
+  assert.match(shell, /lockPrivateForLifecycle/);
+  assert.match(shell, /\}, \[\]\);/);
+  assert.match(shell, /clearPrivateState\(\);[\s\S]*activateEmergencyCover\(\)/);
+  assert.match(shell, /settleSessionOperation\([\s\S]*activeTransport\.send\(text\)/);
+  assert.match(shell, /if \(!result\.current\) return;/);
+  assert.match(shell, /speechSynthesis\.cancel\(\)/);
+  assert.match(sitesRoom, /new Set<AbortController>/);
+  assert.match(sitesRoom, /controller\.abort\(\)/);
+  assert.match(styles, /html\[data-private-locked="true"\] \.privacy-shield/);
+  assert.match(serviceWorker, /chat-shell-v4/);
+  assert.match(nativeApp, /scenePhase/);
+  assert.match(nativeApp, /privacyCoverVisible = true/);
+  assert.match(nativeApp, /PrivacyCoverView/);
+  assert.match(nativeApp, /onPrivacyReady/);
+  assert.doesNotMatch(nativeApp, /asyncAfter/);
+  assert.match(webView, /app-active/);
+  assert.match(webView, /app-inactive/);
+  assert.match(webView, /WKScriptMessageHandler/);
+  assert.match(webView, /privacyReady/);
+  assert.match(security, /casual inspection/);
+  assert.match(security, /cannot prevent a user from taking a screenshot/);
 });
 
 test("release packaging refuses an unavailable iPhone target", async () => {

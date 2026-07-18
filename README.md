@@ -1,7 +1,7 @@
 # Hush / ChatGPT-style private chat
 
 An iPhone-first, two-person encrypted chat hidden behind a ChatGPT-like cover
-conversation. Hold the `ChatGPT 5.2` model title for 900ms to reveal the shared
+conversation. Hold the `ChatGPT` model title for 900ms to reveal the shared
 secret gate.
 
 ## What ships
@@ -61,4 +61,4 @@ unsigned IPA suitable for re-signing through AltStore or Sideloadly.
 
 The `deploy encrypted web app` workflow publishes the standalone fallback to
 GitHub Pages. The visible cover conversation is local and does not call GPT;
-holding the `ChatGPT 5.2` title for 900ms opens the shared-secret gate.
+holding the `ChatGPT` title for 900ms opens the shared-secret gate.

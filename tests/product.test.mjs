@@ -5,23 +5,27 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("renders the ChatGPT-style mobile shell", async () => {
-  const [layout, page, styles] = await Promise.all([
+  const [layout, page, shell, styles] = await Promise.all([
     readFile(new URL("app/layout.tsx", root), "utf8"),
     readFile(new URL("app/page.tsx", root), "utf8"),
-    readFile(new URL("app/globals.css", root), "utf8"),
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
+    readFile(new URL("shared/chat-shell.css", root), "utf8"),
   ]);
   assert.match(layout, /title: "ChatGPT"/);
-  assert.match(page, /询问任何问题/);
-  assert.match(page, /aria-label="ChatGPT 5\.2"/);
-  assert.match(page, /<strong>ChatGPT <span>5\.2<\/span><\/strong>/);
-  assert.match(page, /有什么可以帮忙的？/);
-  assert.match(page, /className="message-actions"/);
-  assert.match(page, /mode === "secret" \? activateCover/);
-  assert.match(page, /setAiMessages\(createCoverMessages\(\)\)/);
-  assert.match(page, /<textarea/);
+  assert.match(shell, /询问任何问题/);
+  assert.match(shell, /aria-label="ChatGPT 模型选择"/);
+  assert.match(shell, /<strong>ChatGPT<\/strong>/);
+  assert.doesNotMatch(shell, /ChatGPT 5\.2|<span>5\.2<\/span>/);
+  assert.match(shell, /有什么可以帮忙的？/);
+  assert.match(shell, /className="message-actions"/);
+  assert.match(shell, /mode === "secret" \? activateCover/);
+  assert.match(shell, /activateEmergencyCover\(\)/);
+  assert.match(shell, /placeholder="搜索对话"/);
+  assert.match(shell, /showVoice/);
+  assert.match(shell, /<textarea/);
   assert.match(styles, /\.me \.bubble/);
-  assert.doesNotMatch(page, /className="encryption-note"|<time>/);
-  assert.doesNotMatch(`${layout}${page}`, /codex-preview|react-loading-skeleton/i);
+  assert.doesNotMatch(shell, /className="encryption-note"|<time>/);
+  assert.doesNotMatch(`${layout}${page}${shell}`, /codex-preview|react-loading-skeleton/i);
 });
 
 test("ships an installable PWA manifest and iOS profile", async () => {
@@ -37,15 +41,17 @@ test("ships an installable PWA manifest and iOS profile", async () => {
 });
 
 test("keeps plaintext crypto operations on the client", async () => {
-  const [cryptoSource, apiSource, pageSource] = await Promise.all([
+  const [cryptoSource, apiSource, pageSource, shellSource] = await Promise.all([
     readFile(new URL("app/lib/chat-crypto.ts", root), "utf8"),
     readFile(new URL("app/api/messages/route.ts", root), "utf8"),
     readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
   ]);
   assert.match(cryptoSource, /AES-GCM/);
   assert.match(cryptoSource, /600_000/);
   assert.match(apiSource, /cipher_text/);
   assert.doesNotMatch(apiSource, /plaintext|message_text|\btext\b/);
-  assert.match(pageSource, /holdTimer\.current = setTimeout\(\(\) => \{/);
-  assert.match(pageSource, /\}, 900\);/);
+  assert.match(shellSource, /holdTimer\.current = setTimeout\(\(\) => \{/);
+  assert.match(shellSource, /\}, 900\);/);
+  assert.doesNotMatch(pageSource, /text:\s*text|plaintext|messageText/);
 });
