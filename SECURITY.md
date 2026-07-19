@@ -24,5 +24,12 @@ The concealment layer is intended only to reduce accidental disclosure during
 casual inspection. It does not resist source-code review, network-traffic
 analysis, a compromised device, or forensic examination. Public repository
 names, MQTT metadata, and distributed build sources can reveal the product's
-purpose. iOS can cover app-switcher snapshots when the scene becomes inactive,
-but it cannot prevent a user from taking a screenshot while the app is visible.
+purpose. When the app moves to the background, the visible private conversation
+is replaced with the local AI cover, but the active room remains in browser
+process memory so it can be reopened from the sidebar. This also means the room
+key and decrypted messages can remain in process memory during an ordinary app
+switch and are not protected from device or memory forensics. Refreshing,
+closing, or discarding the page ends that in-memory session and requires the
+shared secret again. iOS can cover app-switcher snapshots when the scene becomes
+inactive, but it cannot prevent a user from taking a screenshot while the app is
+visible.
