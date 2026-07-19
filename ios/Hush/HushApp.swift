@@ -3,7 +3,7 @@ import SwiftUI
 enum AppConfiguration {
     static let webRootURL = Bundle.main.resourceURL!
         .appendingPathComponent("WebApp", isDirectory: true)
-    static let indexURL = webRootURL.appendingPathComponent("index.html")
+    static let appURL = URL(string: "hush://app/index.html")!
 }
 
 @main
@@ -30,8 +30,10 @@ struct HushApp: App {
                         .zIndex(10)
                 }
             }
-            .onChange(of: scenePhase) { _ in
-                privacyCoverVisible = true
+            .onChange(of: scenePhase) { newPhase in
+                if newPhase != .active {
+                    privacyCoverVisible = true
+                }
                 lifecycleRevision += 1
             }
             .preferredColorScheme(.dark)

@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import { groupPrivateMessages, type CoverModel } from "./cover-chat";
+import { mergePrivateQuickReply, PRIVATE_QUICK_REPLIES } from "./private-quick-replies";
 import { settleSessionOperation } from "./private-session";
 import { RichText, ThinkingDots } from "./rich-text";
 import { useCoverChat } from "./use-cover-chat";
@@ -168,6 +169,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const [showSidebar, setShowSidebar] = useState(false);
   const [showModels, setShowModels] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<Theme>(readInitialTheme);
@@ -275,6 +277,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     setGateBusy(false);
     setGateError("");
     setShowGate(false);
+    setShowQuickReplies(false);
   }, []);
 
   const activateCoverState = useCallback((keepShield: boolean) => {
@@ -382,6 +385,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     privateExposureRef.current = true;
     setMode("secret");
     setShowGate(false);
+    setShowQuickReplies(false);
     setSecret("");
     setRevealSecret(false);
     setGateBusy(false);
@@ -403,6 +407,20 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
       return;
     }
     setShowSidebar(true);
+  };
+
+  const handleComposerTool = () => {
+    if (mode === "secret") {
+      setShowQuickReplies(true);
+      return;
+    }
+    setShowAttachments(true);
+  };
+
+  const choosePrivateQuickReply = (reply: string) => {
+    setDraft((current) => mergePrivateQuickReply(current, reply));
+    setShowQuickReplies(false);
+    window.requestAnimationFrame(() => composerRef.current?.focus());
   };
 
   const makeSecret = () => {
@@ -574,7 +592,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
             <span key={attachment.id}>{attachment.kind === "photo" ? <PhotoIcon /> : <FileIcon />}<b>{attachment.name}</b><button type="button" aria-label={`移除 ${attachment.name}`} onClick={() => setAttachments((items) => items.filter((item) => item.id !== attachment.id))}>×</button></span>
           ))}</div> : null}
           <form className="composer" onSubmit={send}>
-            <button type="button" className="tool-button" aria-label={mode === "secret" ? "返回对话" : "添加照片或文件"} onClick={mode === "secret" ? activateCover : () => setShowAttachments(true)}><PlusIcon /></button>
+            <button type="button" className="tool-button" aria-label={mode === "secret" ? "显示建议回复" : "添加照片或文件"} onClick={handleComposerTool}><PlusIcon /></button>
             <textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleComposerKeyDown} placeholder="询问任何问题" aria-label="消息" rows={1} maxLength={20_000} />
             <button type={draft.trim() || attachments.length ? "submit" : "button"} className={`composer-action ${draft.trim() || attachments.length ? "send-active" : "voice"}`} aria-label={draft.trim() || attachments.length ? "发送消息" : "开始语音模式"} onClick={draft.trim() || attachments.length ? undefined : () => setShowVoice(true)}>
               {draft.trim() || attachments.length ? <ArrowUpIcon /> : <WaveIcon />}
@@ -600,6 +618,8 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
         </div> : null}
 
         {showModels ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowModels(false)}><section className="option-sheet" aria-label="选择回答模式"><div className="sheet-handle" /><h2>选择回答模式</h2>{MODEL_OPTIONS.map((option) => <button type="button" className="model-option" key={option.id} onClick={() => { cover.setModel(option.id); setShowModels(false); }}><span><strong>{option.label}</strong><small>{option.description}</small></span>{cover.selectedModel === option.id ? <CheckIcon /> : null}</button>)}</section></div> : null}
+
+        {mode === "secret" && showQuickReplies ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowQuickReplies(false)}><section className="option-sheet quick-reply-sheet" aria-label="建议回复"><div className="sheet-handle" /><h2>建议回复</h2><p>点选后会填入输入框，可编辑后发送。</p><div className="quick-reply-list">{PRIVATE_QUICK_REPLIES.map((reply) => <button type="button" className="quick-reply-option" key={reply} onClick={() => choosePrivateQuickReply(reply)}>{reply}</button>)}</div><button type="button" className="sheet-done" onClick={() => setShowQuickReplies(false)}>取消</button></section></div> : null}
 
         {showAttachments ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowAttachments(false)}><section className="option-sheet attachment-sheet" aria-label="添加内容"><div className="sheet-handle" /><h2>添加内容</h2><div className="attachment-options"><button type="button" onClick={() => cameraInputRef.current?.click()}><CameraIcon /><span>拍照</span></button><button type="button" onClick={() => photoInputRef.current?.click()}><PhotoIcon /><span>照片</span></button><button type="button" onClick={() => fileInputRef.current?.click()}><FileIcon /><span>文件</span></button></div><p>所选内容只在这台设备上显示，不会上传。</p></section></div> : null}
         <input ref={cameraInputRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => addFiles(event, "photo")} />

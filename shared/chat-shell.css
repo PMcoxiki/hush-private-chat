@@ -241,10 +241,15 @@ html[data-private-locked="true"] .privacy-shield {
 .model-option strong { font-size: 15px; font-weight: 600; }
 .model-option small { color: var(--text-tertiary); font-size: 11px; }
 .model-option > svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.attachment-sheet p, .settings-sheet p { margin: 15px 5px 4px; color: var(--text-tertiary); font-size: 11px; line-height: 1.5; }
+.attachment-sheet p, .settings-sheet p, .quick-reply-sheet > p { margin: 15px 5px 4px; color: var(--text-tertiary); font-size: 11px; line-height: 1.5; }
 .attachment-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
 .attachment-options button { min-height: 88px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--border); border-radius: 15px; background: var(--surface-field); color: var(--text-primary); font-size: 12px; }
 .attachment-options svg { width: 25px; height: 25px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.quick-reply-sheet { max-height: min(78dvh, 650px); display: flex; flex-direction: column; }
+.quick-reply-sheet > p { margin: -3px 4px 13px; }
+.quick-reply-list { min-height: 0; display: grid; gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
+.quick-reply-option { width: 100%; padding: 12px 13px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-field); color: var(--text-primary); text-align: left; font-size: 13px; line-height: 1.5; }
+.quick-reply-option:active { background: var(--surface-active); }
 .settings-row { min-height: 48px; padding: 0 5px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid var(--border-soft); font-size: 13px; }
 .settings-row strong { font-weight: 550; }
 .theme-options { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--surface-field); }
