@@ -32,6 +32,7 @@
   --error: #ff8585;
   --app-shadow: 0 24px 70px rgba(0, 0, 0, .32);
   --panel-shadow: 0 24px 80px rgba(0, 0, 0, .42);
+  --app-viewport-height: 100dvh;
 }
 
 html[data-theme="light"] {
@@ -74,12 +75,13 @@ body { background: var(--app-background); color: var(--text-primary); }
 button, input, textarea { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 
-.app-shell { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; background: var(--app-background); }
+.app-shell { min-height: 100vh; min-height: 100dvh; min-height: var(--app-viewport-height); display: grid; place-items: center; background: var(--app-background); }
 .phone-app {
   position: relative;
   width: min(100%, 430px);
   height: min(100vh, 900px);
   height: min(100dvh, 900px);
+  height: min(var(--app-viewport-height), 900px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -204,6 +206,7 @@ html[data-private-locked="true"] .privacy-shield {
 .tool-button svg { width: 23px; height: 23px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .composer-action { background: var(--primary-button); color: var(--primary-button-text); transition: transform .16s ease, background .16s ease; }
 .composer-action:active { transform: scale(.94); }
+.composer-action:disabled { opacity: .45; transform: none; cursor: default; }
 .composer-action svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .composer-action.voice svg { width: 19px; height: 19px; stroke-width: 1.75; }
 .disclaimer { margin: 5px 0 0; color: var(--text-tertiary); font-size: 9.5px; line-height: 1.2; text-align: center; }
@@ -299,8 +302,10 @@ html[data-private-locked="true"] .privacy-shield {
 @keyframes voice { from { height: 9px; } to { height: 42px; } }
 
 @media (max-width: 520px) {
+  html, body, #root { height: 100%; overflow: hidden; }
   body, .app-shell { background: var(--surface); }
-  .phone-app { width: 100%; height: 100vh; height: 100dvh; border: 0; border-radius: 0; box-shadow: none; }
+  .app-shell { min-height: 0; height: 100vh; height: 100dvh; height: var(--app-viewport-height); }
+  .phone-app { width: 100%; height: 100vh; height: 100dvh; height: var(--app-viewport-height); border: 0; border-radius: 0; box-shadow: none; }
   .topbar { min-height: calc(54px + env(safe-area-inset-top)); padding-top: max(8px, env(safe-area-inset-top)); }
   .sheet-backdrop, .gate-backdrop { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 }
