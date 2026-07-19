@@ -317,36 +317,56 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     activateCoverState(false);
   }, [activateCoverState]);
 
-  const lockPrivateForLifecycle = useEffectEvent((keepShield: boolean) => {
-    activateCoverState(keepShield);
+  const coverPrivateForLifecycle = useEffectEvent((keepShield: boolean) => {
+    showPrivacyShield();
+
+    if (!transportRef.current) {
+      activateCoverState(keepShield);
+      return;
+    }
+
+    if (mode === "secret") {
+      privateDraftRef.current = draft;
+      setDraft(coverDraftRef.current);
+    }
+    setMode("ai");
+    setShowSidebar(false);
+    setShowModels(false);
+    setShowAttachments(false);
+    setShowQuickReplies(false);
+    setShowVoice(false);
+    setShowSettings(false);
+    setShowGate(false);
+    setNotice("");
+    if (!keepShield) hidePrivacyShieldAfterPaint();
   });
 
   useEffect(() => {
-    const lockForBackground = () => {
+    const coverForBackground = () => {
       if (document.visibilityState === "hidden" && privateExposureRef.current) {
-        lockPrivateForLifecycle(true);
+        coverPrivateForLifecycle(true);
       }
     };
-    const lockForPageHide = () => {
-      if (privateExposureRef.current) lockPrivateForLifecycle(true);
+    const coverForPageHide = () => {
+      if (privateExposureRef.current) coverPrivateForLifecycle(true);
     };
     const restoreCover = () => {
       if (document.visibilityState !== "visible") return;
-      if (privateExposureRef.current) lockPrivateForLifecycle(false);
+      if (privateExposureRef.current) coverPrivateForLifecycle(false);
       else hidePrivacyShieldAfterPaint();
     };
-    document.addEventListener("visibilitychange", lockForBackground);
+    document.addEventListener("visibilitychange", coverForBackground);
     document.addEventListener("visibilitychange", restoreCover);
-    window.addEventListener("pagehide", lockForPageHide);
-    document.addEventListener("app-inactive", lockForPageHide);
+    window.addEventListener("pagehide", coverForPageHide);
+    document.addEventListener("app-inactive", coverForPageHide);
     document.addEventListener("app-active", restoreCover);
     window.addEventListener("pageshow", restoreCover);
     restoreCover();
     return () => {
-      document.removeEventListener("visibilitychange", lockForBackground);
+      document.removeEventListener("visibilitychange", coverForBackground);
       document.removeEventListener("visibilitychange", restoreCover);
-      window.removeEventListener("pagehide", lockForPageHide);
-      document.removeEventListener("app-inactive", lockForPageHide);
+      window.removeEventListener("pagehide", coverForPageHide);
+      document.removeEventListener("app-inactive", coverForPageHide);
       document.removeEventListener("app-active", restoreCover);
       window.removeEventListener("pageshow", restoreCover);
     };

@@ -81,7 +81,7 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
   assert.match(workflow, /deploy-pages@v4/);
 });
 
-test("lifecycle cover clears the private room and creates a convincing local AI conversation", async () => {
+test("explicit session end clears the private room and creates a convincing local AI conversation", async () => {
   const app = await readFile(new URL("shared/chat-shell.tsx", root), "utf8");
   const messages = createCoverMessages(1_788_000_000_000);
 
@@ -328,7 +328,7 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
   }
 });
 
-test("backgrounding synchronously covers and locks private presentation on web and iOS", async () => {
+test("backgrounding synchronously covers private presentation while keeping an active room reachable", async () => {
   const [shell, sitesRoom, styles, serviceWorker, nativeApp, webView, security] = await Promise.all([
     readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
     readFile(new URL("app/page.tsx", root), "utf8"),
@@ -345,9 +345,21 @@ test("backgrounding synchronously covers and locks private presentation on web a
   assert.match(shell, /app-inactive/);
   assert.doesNotMatch(shell, /if \(mode !== "secret"\) return;/);
   assert.match(shell, /useEffectEvent/);
-  assert.match(shell, /lockPrivateForLifecycle/);
+  assert.match(shell, /coverPrivateForLifecycle/);
   assert.match(shell, /\}, \[\]\);/);
   assert.match(shell, /clearPrivateState\(\);[\s\S]*activateEmergencyCover\(\)/);
+  const lifecycleCover = shell.slice(
+    shell.indexOf("const coverPrivateForLifecycle"),
+    shell.indexOf("const unlock"),
+  );
+  assert.match(lifecycleCover, /if \(!transportRef\.current\) \{[\s\S]*activateCoverState\(keepShield\)/);
+  assert.match(lifecycleCover, /privateDraftRef\.current = draft/);
+  assert.match(lifecycleCover, /setDraft\(coverDraftRef\.current\)/);
+  assert.match(lifecycleCover, /setMode\("ai"\)/);
+  assert.doesNotMatch(
+    lifecycleCover.slice(lifecycleCover.indexOf("if (mode === \"secret\")")),
+    /clearPrivateState|transportRef\.current\?\.close|activateEmergencyCover/,
+  );
   assert.match(shell, /settleSessionOperation\([\s\S]*activeTransport\.send\(text\)/);
   assert.match(shell, /if \(!result\.current\) return;/);
   assert.match(shell, /speechSynthesis\.cancel\(\)/);
@@ -370,6 +382,8 @@ test("backgrounding synchronously covers and locks private presentation on web a
   assert.match(webView, /dataset\.privateLocked === 'true'/);
   assert.match(webView, /attempt < 50/);
   assert.match(security, /casual inspection/);
+  assert.match(security, /active room remains in browser\s+process memory/);
+  assert.match(security, /Refreshing,\s+closing, or discarding the page ends that in-memory session/);
   assert.match(security, /cannot prevent a user from taking a screenshot/);
 });
 
