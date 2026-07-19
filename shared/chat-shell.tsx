@@ -1,5 +1,6 @@
 import {
   type ChangeEvent,
+  type CompositionEvent,
   type FormEvent,
   type KeyboardEvent,
   type PointerEvent,
@@ -12,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { shouldSubmitComposerKey } from "./composer-ime";
 import { groupPrivateMessages, type CoverModel } from "./cover-chat";
 import { generatePrivateAiReply } from "./private-ai-replies";
 import { mergePrivateQuickReply, PRIVATE_QUICK_REPLIES } from "./private-quick-replies";
@@ -185,6 +187,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("offline");
   const [roomAvailable, setRoomAvailable] = useState(false);
+  const [composerComposing, setComposerComposing] = useState(false);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [senderId, setSenderId] = useState("");
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -194,6 +197,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const privateExposureRef = useRef(false);
   const privateDraftRef = useRef("");
   const coverDraftRef = useRef("");
+  const composerComposingRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -225,6 +229,35 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   }, [draft]);
 
   useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    let frame = 0;
+    const syncViewport = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        document.documentElement.style.setProperty(
+          "--app-viewport-height",
+          `${Math.round(viewport.height)}px`,
+        );
+        if (document.activeElement === composerRef.current) {
+          composerRef.current?.scrollIntoView({ block: "nearest" });
+        }
+      });
+    };
+
+    syncViewport();
+    viewport.addEventListener("resize", syncViewport);
+    viewport.addEventListener("scroll", syncViewport);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      viewport.removeEventListener("resize", syncViewport);
+      viewport.removeEventListener("scroll", syncViewport);
+      document.documentElement.style.removeProperty("--app-viewport-height");
+    };
+  }, []);
+
+  useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 2_400);
     return () => window.clearTimeout(timer);
@@ -239,6 +272,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     [messages],
   );
   const newestPrivateTurn = privateTurns.at(-1)?.id;
+  const composerHasContent = Boolean(draft.trim() || attachments.length);
   const filteredHistory = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     if (!query) return cover.conversations;
@@ -298,6 +332,8 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     setGateError("");
     setShowGate(false);
     setShowQuickReplies(false);
+    composerComposingRef.current = false;
+    setComposerComposing(false);
   }, []);
 
   const activateCoverState = useCallback((keepShield: boolean) => {
@@ -338,6 +374,8 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     setShowSettings(false);
     setShowGate(false);
     setNotice("");
+    composerComposingRef.current = false;
+    setComposerComposing(false);
     if (!keepShield) hidePrivacyShieldAfterPaint();
   });
 
@@ -545,12 +583,14 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
   const send = async (event: FormEvent) => {
     event.preventDefault();
+    if (composerComposingRef.current) return;
+    const currentDraft = composerRef.current?.value ?? draft;
     const attachmentCopy = attachments.map((attachment) => attachment.name).join("、");
-    const text = draft.trim() || (attachmentCopy ? `请帮我整理附件：${attachmentCopy}` : "");
+    const text = currentDraft.trim() || (attachmentCopy ? `请帮我整理附件：${attachmentCopy}` : "");
     if (!text) return;
 
     if (mode === "ai") {
-      const prompt = attachmentCopy && draft.trim() ? `${draft.trim()}\n\n附件：${attachmentCopy}` : text;
+      const prompt = attachmentCopy && currentDraft.trim() ? `${currentDraft.trim()}\n\n附件：${attachmentCopy}` : text;
       if (cover.ask(prompt)) {
         coverDraftRef.current = "";
         setDraft("");
@@ -585,9 +625,27 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   };
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    if (!shouldSubmitComposerKey(event.nativeEvent, composerComposingRef.current)) return;
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
+  };
+
+  const updateComposerDraft = (nextDraft: string) => {
+    if (mode === "secret") privateDraftRef.current = nextDraft;
+    else coverDraftRef.current = nextDraft;
+    setDraft(nextDraft);
+  };
+
+  const beginComposerComposition = () => {
+    composerComposingRef.current = true;
+    setComposerComposing(true);
+  };
+
+  const endComposerComposition = (event: CompositionEvent<HTMLTextAreaElement>) => {
+    const finalValue = event.currentTarget.value;
+    composerComposingRef.current = false;
+    setComposerComposing(false);
+    updateComposerDraft(finalValue);
   };
 
   const renderActions = (text: string) => (
@@ -662,14 +720,17 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
           ))}</div> : null}
           <form className="composer" onSubmit={send}>
             <button type="button" className="tool-button" aria-label={mode === "secret" ? "显示建议回复" : "添加照片或文件"} onClick={handleComposerTool}><PlusIcon /></button>
-            <textarea ref={composerRef} value={draft} onChange={(event) => {
-              const nextDraft = event.target.value;
-              if (mode === "secret") privateDraftRef.current = nextDraft;
-              else coverDraftRef.current = nextDraft;
-              setDraft(nextDraft);
-            }} onKeyDown={handleComposerKeyDown} placeholder="询问任何问题" aria-label="消息" rows={1} maxLength={20_000} />
-            <button type={draft.trim() || attachments.length ? "submit" : "button"} className={`composer-action ${draft.trim() || attachments.length ? "send-active" : "voice"}`} aria-label={draft.trim() || attachments.length ? "发送消息" : "开始语音模式"} onClick={draft.trim() || attachments.length ? undefined : () => setShowVoice(true)}>
-              {draft.trim() || attachments.length ? <ArrowUpIcon /> : <WaveIcon />}
+            <textarea ref={composerRef} value={draft} onChange={(event) => updateComposerDraft(event.target.value)} onBeforeInput={(event) => {
+              const nativeEvent = event.nativeEvent as InputEvent;
+              if (nativeEvent.isComposing || nativeEvent.inputType === "insertCompositionText") beginComposerComposition();
+            }} onCompositionStart={beginComposerComposition} onCompositionEnd={endComposerComposition} onBlur={(event) => {
+              if (!composerComposingRef.current) return;
+              composerComposingRef.current = false;
+              setComposerComposing(false);
+              updateComposerDraft(event.currentTarget.value);
+            }} onKeyDown={handleComposerKeyDown} onFocus={() => window.requestAnimationFrame(() => composerRef.current?.scrollIntoView({ block: "nearest" }))} placeholder="询问任何问题" aria-label="消息" inputMode="text" enterKeyHint="send" lang="zh-CN" autoCorrect="on" autoCapitalize="sentences" rows={1} maxLength={20_000} />
+            <button type={composerHasContent && !composerComposing ? "submit" : "button"} disabled={composerComposing} className={`composer-action ${composerHasContent ? "send-active" : "voice"}`} aria-label={composerComposing ? "正在输入" : composerHasContent ? "发送消息" : "开始语音模式"} onClick={!composerComposing && !composerHasContent ? () => setShowVoice(true) : undefined}>
+              {composerHasContent ? <ArrowUpIcon /> : <WaveIcon />}
             </button>
           </form>
           <p className="disclaimer">ChatGPT 可能会出错，请核查重要信息。</p>
