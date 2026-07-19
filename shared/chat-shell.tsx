@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  Fragment,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -12,6 +13,7 @@ import {
   useState,
 } from "react";
 import { groupPrivateMessages, type CoverModel } from "./cover-chat";
+import { generatePrivateAiReply } from "./private-ai-replies";
 import { mergePrivateQuickReply, PRIVATE_QUICK_REPLIES } from "./private-quick-replies";
 import { settleSessionOperation } from "./private-session";
 import { RichText, ThinkingDots } from "./rich-text";
@@ -182,6 +184,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const [search, setSearch] = useState("");
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("offline");
+  const [roomAvailable, setRoomAvailable] = useState(false);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [senderId, setSenderId] = useState("");
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -189,6 +192,8 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const transportRef = useRef<PrivateRoomSession | null>(null);
   const roomSessionRef = useRef(0);
   const privateExposureRef = useRef(false);
+  const privateDraftRef = useRef("");
+  const coverDraftRef = useRef("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -229,7 +234,11 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     () => groupPrivateMessages(messages, senderId),
     [messages, senderId],
   );
-  const newestAssistantTurn = [...privateTurns].reverse().find((turn) => turn.sender === "them")?.id;
+  const privateAiReplies = useMemo(
+    () => new Map(messages.map((message) => [message.id, generatePrivateAiReply(message.text)])),
+    [messages],
+  );
+  const newestPrivateTurn = privateTurns.at(-1)?.id;
   const filteredHistory = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     if (!query) return cover.conversations;
@@ -246,6 +255,15 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     if (holdTimer.current) clearTimeout(holdTimer.current);
     holdTimer.current = setTimeout(() => {
       holdTriggered.current = true;
+      if (roomAvailable) {
+        coverDraftRef.current = draft;
+        setDraft(privateDraftRef.current);
+        setMode("secret");
+        setShowSidebar(false);
+        setShowModels(false);
+        navigator.vibrate?.(20);
+        return;
+      }
       privateExposureRef.current = true;
       setShowModels(false);
       setShowGate(true);
@@ -272,6 +290,8 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     setMessages([]);
     setStatus("offline");
+    setRoomAvailable(false);
+    privateDraftRef.current = "";
     setSecret("");
     setRevealSecret(false);
     setGateBusy(false);
@@ -383,6 +403,8 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
     transportRef.current = result.value;
     privateExposureRef.current = true;
+    privateDraftRef.current = "";
+    setRoomAvailable(true);
     setMode("secret");
     setShowGate(false);
     setShowQuickReplies(false);
@@ -392,9 +414,14 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   };
 
   const startNewChat = () => {
-    if (mode === "secret") clearPrivateState();
+    if (mode === "secret" && roomAvailable) {
+      privateDraftRef.current = draft;
+      coverDraftRef.current = "";
+      setMode("ai");
+    } else {
+      coverDraftRef.current = "";
+    }
     cover.startNew();
-    setMode("ai");
     setDraft("");
     setAttachments([]);
     setShowSidebar(false);
@@ -402,11 +429,28 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   };
 
   const handleMenu = () => {
-    if (mode === "secret") {
-      activateCover();
-      return;
-    }
     setShowSidebar(true);
+  };
+
+  const returnToPrivateRoom = () => {
+    if (!roomAvailable) return;
+    if (mode === "ai") coverDraftRef.current = draft;
+    setDraft(privateDraftRef.current);
+    setMode("secret");
+    setShowSidebar(false);
+    setShowModels(false);
+    setShowAttachments(false);
+  };
+
+  const selectCoverConversation = (conversationId: string) => {
+    if (mode === "secret") {
+      privateDraftRef.current = draft;
+      setDraft(coverDraftRef.current);
+    }
+    cover.selectConversation(conversationId);
+    setMode("ai");
+    setShowSidebar(false);
+    setShowModels(false);
   };
 
   const handleComposerTool = () => {
@@ -488,6 +532,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     if (mode === "ai") {
       const prompt = attachmentCopy && draft.trim() ? `${draft.trim()}\n\n附件：${attachmentCopy}` : text;
       if (cover.ask(prompt)) {
+        coverDraftRef.current = "";
         setDraft("");
         setAttachments([]);
       }
@@ -498,6 +543,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
       setNotice("暂时无法生成，请稍后再试");
       return;
     }
+    privateDraftRef.current = "";
     setDraft("");
     const roomSession = roomSessionRef.current;
     const activeTransport = transportRef.current;
@@ -512,6 +558,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
       setMessages((items) => mergeMessage(items, { ...result.value, sender: "me" }));
     } catch {
       if (roomSession !== roomSessionRef.current) return;
+      privateDraftRef.current = text;
       setDraft(text);
       setNotice("暂时无法生成，请稍后再试");
     }
@@ -571,18 +618,20 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
               </article>
             ))
           ) : (
-            privateTurns.length === 0 ? <div className="private-thinking"><ThinkingDots /></div> : privateTurns.map((turn) => (
-              <article className={`message-row ${turn.sender}`} key={turn.id}>
-                <div className="message-content">
-                  <div className="bubble">
-                    {turn.sender === "them"
-                      ? <ProgressivePrivateText text={turn.text} animate={turn.id === newestAssistantTurn} />
-                      : <RichText text={turn.text} />}
-                  </div>
-                  {turn.sender === "them" ? renderActions(turn.text) : null}
-                </div>
-              </article>
-            ))
+            privateTurns.length === 0 ? <div className="private-thinking"><ThinkingDots /></div> : privateTurns.map((turn) => {
+              const companionSegments = turn.messageIds.map((messageId) => privateAiReplies.get(messageId) || "");
+              const companionText = companionSegments.join("\n\n");
+              const assistantText = turn.segments.map((segment, index) => (
+                `${segment}\n\n${companionSegments[index]}`
+              )).join("\n\n");
+              if (turn.sender === "them") {
+                return <article className="message-row them" key={turn.id}><div className="message-content"><div className="bubble"><ProgressivePrivateText text={assistantText} animate={turn.id === newestPrivateTurn} /></div>{renderActions(turn.text)}</div></article>;
+              }
+              return <Fragment key={turn.id}>
+                <article className="message-row me private-original-with-reply"><div className="message-content"><div className="bubble"><RichText text={turn.text} /></div></div></article>
+                <article className="message-row them private-ai-reply"><div className="message-content"><div className="bubble"><ProgressivePrivateText text={companionText} animate={turn.id === newestPrivateTurn} /></div>{renderActions(companionText)}</div></article>
+              </Fragment>;
+            })
           )}
           <div ref={bottomRef} />
         </div>
@@ -593,7 +642,12 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
           ))}</div> : null}
           <form className="composer" onSubmit={send}>
             <button type="button" className="tool-button" aria-label={mode === "secret" ? "显示建议回复" : "添加照片或文件"} onClick={handleComposerTool}><PlusIcon /></button>
-            <textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleComposerKeyDown} placeholder="询问任何问题" aria-label="消息" rows={1} maxLength={20_000} />
+            <textarea ref={composerRef} value={draft} onChange={(event) => {
+              const nextDraft = event.target.value;
+              if (mode === "secret") privateDraftRef.current = nextDraft;
+              else coverDraftRef.current = nextDraft;
+              setDraft(nextDraft);
+            }} onKeyDown={handleComposerKeyDown} placeholder="询问任何问题" aria-label="消息" rows={1} maxLength={20_000} />
             <button type={draft.trim() || attachments.length ? "submit" : "button"} className={`composer-action ${draft.trim() || attachments.length ? "send-active" : "voice"}`} aria-label={draft.trim() || attachments.length ? "发送消息" : "开始语音模式"} onClick={draft.trim() || attachments.length ? undefined : () => setShowVoice(true)}>
               {draft.trim() || attachments.length ? <ArrowUpIcon /> : <WaveIcon />}
             </button>
@@ -609,9 +663,10 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
             <div className="sidebar-header"><button type="button" aria-label="关闭侧边栏" onClick={() => setShowSidebar(false)}><CloseIcon /></button><button type="button" aria-label="新对话" onClick={startNewChat}><ComposeIcon /></button></div>
             <button type="button" className="sidebar-home" onClick={startNewChat}><KnotMark small /><strong>ChatGPT</strong></button>
             <label className="history-search"><SearchIcon /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索对话" aria-label="搜索对话" /></label>
+            {roomAvailable ? <><div className="history-label">当前</div><button type="button" className={`history-item room-return${mode === "secret" ? " active" : ""}`} aria-label="返回当前房间" onClick={returnToPrivateRoom}><span aria-hidden="true">●</span>继续当前对话</button></> : null}
             <div className="history-label">最近</div>
             <div className="history-list">
-              {filteredHistory.length ? filteredHistory.map((conversation) => <button type="button" className={`history-item${cover.activeId === conversation.id ? " active" : ""}`} key={conversation.id} onClick={() => { cover.selectConversation(conversation.id); setShowSidebar(false); }}>{conversation.title}</button>) : <p className="history-empty">{search ? "没有找到相关对话" : "你的本地对话会显示在这里"}</p>}
+              {filteredHistory.length ? filteredHistory.map((conversation) => <button type="button" className={`history-item${mode === "ai" && cover.activeId === conversation.id ? " active" : ""}`} key={conversation.id} onClick={() => selectCoverConversation(conversation.id)}>{conversation.title}</button>) : <p className="history-empty">{search ? "没有找到相关对话" : "你的本地对话会显示在这里"}</p>}
             </div>
             <button type="button" className="sidebar-profile" onClick={() => setShowSettings(true)}><span>•••</span><span><strong>设置与帮助</strong><small>本地模式</small></span></button>
           </aside>
@@ -628,7 +683,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
         {showVoice ? <section className="voice-mode" aria-label="语音模式"><button type="button" className="voice-close" aria-label="关闭语音模式" onClick={() => setShowVoice(false)}><CloseIcon /></button><KnotMark /><p>正在聆听</p><div className="voice-bars" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <i key={index} />)}</div><small>在本机等待语音输入</small><button type="button" className="voice-end" onClick={() => setShowVoice(false)}>结束</button></section> : null}
 
-        {showSettings ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowSettings(false)}><section className="option-sheet settings-sheet"><div className="sheet-handle" /><h2>设置与帮助</h2><div className="settings-row"><span>回答模式</span><strong>{MODEL_OPTIONS.find((option) => option.id === cover.selectedModel)?.label}</strong></div><div className="settings-row"><span>外观</span><div className="theme-options" role="group" aria-label="外观模式"><button type="button" aria-pressed={theme === "dark"} onClick={() => selectTheme("dark")}>深色</button><button type="button" aria-pressed={theme === "light"} onClick={() => selectTheme("light")}>浅色</button></div></div><div className="settings-row"><span>对话存储</span><strong>仅限本机</strong></div><p>普通咨询记录最多保留 12 条。回答由本地规则生成，断网也能使用。</p><button type="button" className="sheet-done" onClick={() => { setShowSettings(false); setShowSidebar(false); }}>完成</button></section></div> : null}
+        {showSettings ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowSettings(false)}><section className="option-sheet settings-sheet"><div className="sheet-handle" /><h2>设置与帮助</h2><div className="settings-row"><span>回答模式</span><strong>{MODEL_OPTIONS.find((option) => option.id === cover.selectedModel)?.label}</strong></div><div className="settings-row"><span>外观</span><div className="theme-options" role="group" aria-label="外观模式"><button type="button" aria-pressed={theme === "dark"} onClick={() => selectTheme("dark")}>深色</button><button type="button" aria-pressed={theme === "light"} onClick={() => selectTheme("light")}>浅色</button></div></div><div className="settings-row"><span>对话存储</span><strong>仅限本机</strong></div><p>普通咨询记录最多保留 12 条。回答由本地规则生成，断网也能使用。</p>{roomAvailable ? <button type="button" className="sheet-danger" onClick={() => { setShowSettings(false); activateCover(); }}>结束当前会话</button> : null}<button type="button" className="sheet-done" onClick={() => { setShowSettings(false); setShowSidebar(false); }}>完成</button></section></div> : null}
 
         {showGate ? <div className="gate-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !gateBusy && clearPrivateState()}><form className="gate" onSubmit={unlock}><div className="sheet-handle" /><div className="lock-mark" aria-hidden="true">⌁</div><h2>模型诊断</h2><p>输入诊断访问令牌</p><div className="secret-field"><input autoFocus type={revealSecret ? "text" : "password"} value={secret} onChange={(event) => { privateExposureRef.current = true; setSecret(event.target.value); }} placeholder="访问令牌" autoComplete="off" spellCheck={false} /><button type="button" onClick={() => setRevealSecret((value) => !value)}>{revealSecret ? "隐藏" : "显示"}</button></div><div className="token-actions"><button type="button" onClick={makeSecret}>生成访问令牌</button><button type="button" onClick={copySecret} disabled={!secret}>复制</button></div>{gateError ? <div className="gate-error">{gateError}</div> : null}<button type="submit" disabled={gateBusy}>{gateBusy ? "正在诊断…" : "开始诊断"}</button><button type="button" className="cancel" onClick={clearPrivateState} disabled={gateBusy}>取消</button></form></div> : null}
       </section>
