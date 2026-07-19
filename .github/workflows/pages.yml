@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "fallback/**"
+      - "shared/**"
       - "public/**"
       - "vite.fallback.config.ts"
       - "package.json"
