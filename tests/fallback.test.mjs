@@ -24,6 +24,7 @@ import {
   PRIVATE_QUICK_REPLIES,
 } from "../shared/private-quick-replies.ts";
 import { generatePrivateAiReply } from "../shared/private-ai-replies.ts";
+import { shouldSubmitComposerKey } from "../shared/composer-ime.ts";
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -155,6 +156,31 @@ test("private composer plus offers AI-like replies without leaving the room", as
   assert.doesNotMatch(replyHandler, /transportRef|\.send\(|\.close\(/);
   assert.match(shell, /aria-label="建议回复"/);
   assert.match(shell, /点选后会填入输入框，可编辑后发送/);
+});
+
+test("composer waits for Sogou and other Chinese IMEs to finish composing", async () => {
+  const [shell, styles, fallbackHtml, layout] = await Promise.all([
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
+    readFile(new URL("shared/chat-shell.css", root), "utf8"),
+    readFile(new URL("fallback/index.html", root), "utf8"),
+    readFile(new URL("app/layout.tsx", root), "utf8"),
+  ]);
+
+  assert.equal(shouldSubmitComposerKey({ key: "Enter", shiftKey: false }, false), true);
+  assert.equal(shouldSubmitComposerKey({ key: "Enter", shiftKey: true }, false), false);
+  assert.equal(shouldSubmitComposerKey({ key: "Enter", shiftKey: false, isComposing: true }, false), false);
+  assert.equal(shouldSubmitComposerKey({ key: "Enter", shiftKey: false, keyCode: 229 }, false), false);
+  assert.equal(shouldSubmitComposerKey({ key: "Enter", shiftKey: false, which: 229 }, false), false);
+  assert.equal(shouldSubmitComposerKey({ key: "Enter", shiftKey: false }, true), false);
+  assert.match(shell, /onCompositionStart=\{beginComposerComposition\}/);
+  assert.match(shell, /onCompositionEnd=\{endComposerComposition\}/);
+  assert.match(shell, /insertCompositionText/);
+  assert.match(shell, /composerRef\.current\?\.value \?\? draft/);
+  assert.match(shell, /disabled=\{composerComposing\}/);
+  assert.match(shell, /window\.visualViewport/);
+  assert.match(styles, /--app-viewport-height/);
+  assert.match(fallbackHtml, /interactive-widget=resizes-content/);
+  assert.match(layout, /interactiveWidget: "resizes-content"/);
 });
 
 test("local cover engine recognizes varied consultation intents without network access", () => {
