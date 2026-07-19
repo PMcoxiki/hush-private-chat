@@ -23,6 +23,7 @@ import {
   mergePrivateQuickReply,
   PRIVATE_QUICK_REPLIES,
 } from "../shared/private-quick-replies.ts";
+import { generatePrivateAiReply } from "../shared/private-ai-replies.ts";
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -80,7 +81,7 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
   assert.match(workflow, /deploy-pages@v4/);
 });
 
-test("emergency cover creates a convincing local AI conversation", async () => {
+test("lifecycle cover clears the private room and creates a convincing local AI conversation", async () => {
   const app = await readFile(new URL("shared/chat-shell.tsx", root), "utf8");
   const messages = createCoverMessages(1_788_000_000_000);
 
@@ -90,11 +91,45 @@ test("emergency cover creates a convincing local AI conversation", async () => {
     "me", "them", "me", "them", "me", "them", "me", "them", "me", "them",
   ]);
   assert.ok(messages.every((message, index) => index === 0 || message.createdAt > messages[index - 1].createdAt));
-  assert.match(app, /if \(mode === "secret"\) \{\s*activateCover\(\);\s*return;\s*\}/);
+  assert.match(app, /const handleMenu = \(\) => \{\s*setShowSidebar\(true\);\s*\};/);
+  assert.match(app, /clearPrivateState\(\);\s*activateEmergencyCover\(\);/);
   assert.match(app, /activateEmergencyCover\(\)/);
   assert.match(app, /roomSession !== roomSessionRef\.current/);
   assert.match(app, /roomSessionRef\.current \+= 1;/);
   assert.doesNotMatch(app, /transportRef\.current\.send\([^)]*cover/i);
+});
+
+test("active room stays reachable and every private message gets one local AI reply", async () => {
+  const [shell, repliesSource] = await Promise.all([
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
+    readFile(new URL("shared/private-ai-replies.ts", root), "utf8"),
+  ]);
+  const prompts = [
+    "今天下午三点前完成",
+    "不要改写原来的意思",
+    "帮我列一个简单清单",
+    "为什么会出现这个问题？",
+    "我已经把第一部分处理好了",
+    "明天怎么安排比较合适？",
+  ];
+  const replies = prompts.map(generatePrivateAiReply);
+  const menuHandler = shell.slice(shell.indexOf("const handleMenu"), shell.indexOf("const returnToPrivateRoom"));
+  const roomNavigation = shell.slice(shell.indexOf("const returnToPrivateRoom"), shell.indexOf("const handleComposerTool"));
+
+  assert.ok(replies.every((reply) => reply.length >= 40));
+  assert.ok(new Set(replies).size >= 5);
+  assert.equal(generatePrivateAiReply(prompts[0]), replies[0]);
+  assert.doesNotMatch(repliesSource, /fetch|XMLHttpRequest|OpenAI|GPT/i);
+  assert.match(shell, /const \[roomAvailable, setRoomAvailable\] = useState\(false\)/);
+  assert.match(shell, /aria-label="返回当前房间"/);
+  assert.match(shell, /继续当前对话/);
+  assert.match(shell, /const returnToPrivateRoom/);
+  assert.doesNotMatch(`${menuHandler}${roomNavigation}`, /clearPrivateState|transportRef\.current\?\.close|activateEmergencyCover/);
+  assert.match(roomNavigation, /setMode\("secret"\)/);
+  assert.match(roomNavigation, /setMode\("ai"\)/);
+  assert.match(shell, /new Map\(messages\.map\(\(message\) => \[message\.id, generatePrivateAiReply\(message\.text\)\]\)\)/);
+  assert.match(shell, /turn\.messageIds\.map\(\(messageId\) => privateAiReplies\.get\(messageId\)/);
+  assert.doesNotMatch(shell.slice(shell.indexOf("const send = async"), shell.indexOf("const handleComposerKeyDown")), /generatePrivateAiReply|privateAiReplies/);
 });
 
 test("private composer plus offers AI-like replies without leaving the room", async () => {
