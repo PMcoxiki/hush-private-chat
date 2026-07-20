@@ -48,4 +48,4 @@ are documented in [SECURITY.md](SECURITY.md).
 
 ## Contact
 
-For privacy questions, contact `122415201@qq.com`.
+For privacy questions, use a [private GitHub security advisory](https://github.com/PMcoxiki/hush-private-chat/security/advisories/new). Do not include a real room secret or message content in support requests.
