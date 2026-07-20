@@ -56,7 +56,7 @@ test("fallback derives stable rooms and round-trips encrypted payloads", async (
   assert.deepEqual(await decryptPayload(second.key, envelope), clear);
 });
 
-test("fallback uses durable ciphertext history with fixed legacy relay compatibility", async () => {
+test("fallback retains ciphertext history across fixed independent relays", async () => {
   const [app, shell, transport, durable, manifest, workflow] = await Promise.all([
     readFile(new URL("fallback/src/App.tsx", root), "utf8"),
     readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
@@ -78,7 +78,9 @@ test("fallback uses durable ciphertext history with fixed legacy relay compatibi
   assert.match(shell, /setTimeout\(\(\) => \{/);
   assert.doesNotMatch(`${app}${shell}`, /OpenAI|ChatGPT.*login/i);
   assert.match(transport, /openDurableRoom/);
-  assert.match(transport, /!durablyStored/);
+  assert.match(transport, /MQTT_RETAIN_HISTORY = true/);
+  assert.match(transport, /Promise\.any\(\[durableAttempt, brokerAttempt\]\)/);
+  assert.doesNotMatch(transport, /!durablyStored/);
   assert.match(transport, /broker\.emqx\.io/);
   assert.match(transport, /broker\.hivemq\.com/);
   assert.doesNotMatch(transport, /servers\s*:/);

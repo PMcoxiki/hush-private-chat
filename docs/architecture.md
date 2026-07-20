@@ -25,11 +25,12 @@ rotation, replay protection, and push notifications containing no plaintext.
 - `ios/`: app-bound SwiftUI wrapper prepared for Apple signing.
 - `db/schema.ts`: persistence contract and timeline index.
 - Cloudflare D1: encrypted message envelope storage.
-- `fallback/`: static PWA and native embedded client that use D1 for durable
-  ciphertext history and lazy-load MQTT only after the hidden gate opens.
-- Public MQTT relays: fixed, independent compatibility readers for legacy
-  retained ciphertext plus best-effort realtime delivery. New history is
-  authoritative in D1; the clients never rotate between unrelated brokers.
+- `fallback/`: static PWA and native embedded client that write encrypted
+  envelopes to D1 and fixed MQTT relays after the hidden gate opens.
+- Public MQTT relays: two independent compatibility and availability paths.
+  Each message uses a unique retained topic, so Pages and iOS can recover
+  ciphertext history when the Sites hostname is regionally blocked. The clients
+  never rotate between unrelated brokers, and message IDs deduplicate copies.
 
 ## Influences
 
@@ -51,3 +52,7 @@ rotation, replay protection, and push notifications containing no plaintext.
 7. Sites, Pages, PWA, and iOS derive the same v3 room from the same shared
    secret. A client that can decrypt legacy v2 data re-encrypts it locally
    before uploading it to the v3 ciphertext table.
+8. Static and embedded clients retain only ciphertext on both public MQTT
+   relays. This improves mixed-network recovery but gives broker operators
+   long-lived traffic metadata and ciphertext copies that the app cannot
+   guarantee it can delete.

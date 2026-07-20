@@ -13,23 +13,30 @@ traffic-shaping, abuse controls, or recovery flow. A production release must use
 an audited protocol implementation such as libsignal and receive an independent
 security assessment.
 
-All current clients use the Sites D1 relay as the authoritative durable history.
-The v3 table receives only an opaque room identifier, random message identifier,
-AES-GCM ciphertext, and IV. Public MQTT relays remain as compatibility readers
-for legacy retained ciphertext and as a best-effort realtime bridge. Relay and
-hosting operators can still observe timing, message size, IP address, and room
-activity, and they can delete data or stop service. The same shared secret grants
-both read and write access to a room; there is no account, device revocation, or
-server-side access-control list. Do not treat this prototype as equivalent to
-Signal Protocol or use it for high-risk conversations.
+Sites clients use the D1 relay as their durable history. The static PWA and
+embedded iOS client also retain the same AES-GCM envelopes under per-message
+topics on two fixed public MQTT relays. This redundant path is necessary because
+the Sites hostname can be blocked by regional network security services. D1 and
+MQTT receive only an opaque room identifier, random message identifier,
+AES-GCM ciphertext, and IV; the shared secret, sender identity, text, and client
+timestamp remain encrypted.
+
+Public brokers may keep retained ciphertext and traffic metadata indefinitely,
+and the app cannot reliably delete it. Relay and hosting operators can observe
+timing, message size, IP address, and room activity, and they can delete data or
+stop service. Recovery is best-effort and requires at least one relay to retain
+the message. The same shared secret grants both read and write access to a room;
+there is no account, device revocation, or server-side access-control list. Do
+not treat this prototype as equivalent to Signal Protocol or use it for
+high-risk conversations.
 
 Legacy v2 D1 rows contain a random sender identifier and client timestamp in
 addition to ciphertext. Current clients can decrypt those rows only after the
 user supplies the shared secret, then re-encrypt the complete message envelope
 locally into v3. The plaintext is never sent during migration. Legacy MQTT
 retained envelopes are copied to D1 without decryption on the server. Public
-broker retention is still best-effort, so already-deleted legacy messages cannot
-be recovered.
+broker retention is still best-effort, so already-deleted messages cannot be
+recovered.
 
 The concealment layer is intended only to reduce accidental disclosure during
 casual inspection. It does not resist source-code review, network-traffic

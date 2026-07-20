@@ -26,6 +26,7 @@ export type RoomTransport = {
 };
 
 const MAX_ENVELOPE_BYTES = 64_000;
+const MQTT_RETAIN_HISTORY = true;
 const BROKERS = [
   "wss://broker.emqx.io:8084/mqtt",
   "wss://broker.hivemq.com:8884/mqtt",
@@ -125,20 +126,24 @@ export async function openRoom(options: RoomOptions): Promise<RoomTransport> {
         createdAt: Date.now(),
       };
       const envelope = await encryptPayload(options.key, message);
-      let durablyStored = false;
-      try {
-        await durable.persist(message, envelope);
-        durablyStored = true;
-      } catch {
-        durablyStored = false;
-      }
-
       const connectedClients = clients.filter((client) => client.connected);
-      const results = await Promise.allSettled(connectedClients.map((client) => (
-        publish(client, `${topicBase}/${message.id}`, JSON.stringify(envelope), !durablyStored)
-      )));
-      const brokerStored = results.some((result) => result.status === "fulfilled");
-      if (!durablyStored && !brokerStored) throw new Error("Secure relay is offline");
+      const durableAttempt = durable.persist(message, envelope);
+      const brokerAttempt = connectedClients.length > 0
+        ? Promise.any(connectedClients.map((client) => (
+            publish(
+              client,
+              `${topicBase}/${message.id}`,
+              JSON.stringify(envelope),
+              MQTT_RETAIN_HISTORY,
+            )
+          )))
+        : Promise.reject(new Error("No MQTT relay is connected"));
+
+      try {
+        await Promise.any([durableAttempt, brokerAttempt]);
+      } catch {
+        throw new Error("Secure relay is offline");
+      }
       return message;
     },
     close() {
