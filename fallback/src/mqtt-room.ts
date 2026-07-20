@@ -4,20 +4,18 @@ import {
   decryptPayload,
   encryptPayload,
   type CipherEnvelope,
-  type ClearMessage,
 } from "./chat-crypto";
-
-export type ConnectionStatus = "connecting" | "online" | "offline";
-
-export type RoomMessage = ClearMessage & {
-  id: string;
-  historical?: boolean;
-};
+import {
+  openDurableRoom,
+  type ConnectionStatus,
+  type RoomMessage,
+} from "../../shared/durable-room";
 
 type RoomOptions = {
   room: string;
   key: CryptoKey;
   senderId: string;
+  legacy: { room: string; key: CryptoKey };
   onMessage: (message: RoomMessage) => void;
   onStatus: (status: ConnectionStatus) => void;
 };
@@ -28,70 +26,98 @@ export type RoomTransport = {
 };
 
 const MAX_ENVELOPE_BYTES = 64_000;
+const BROKERS = [
+  "wss://broker.emqx.io:8084/mqtt",
+  "wss://broker.hivemq.com:8884/mqtt",
+] as const;
 
 function messageId() {
   return crypto.randomUUID().replaceAll("-", "");
 }
 
-function createClient() {
-  return mqtt.connect({
-    protocol: "wss",
-    path: "/mqtt",
+function createClient(broker: string) {
+  return mqtt.connect(broker, {
     clean: true,
     keepalive: 45,
-    reconnectPeriod: 2_500,
+    reconnectPeriod: 5_000,
     connectTimeout: 10_000,
     clientId: `hush_web_${messageId().slice(0, 20)}`,
-    servers: [
-      { host: "broker.emqx.io", port: 8084, protocol: "wss" },
-      { host: "broker.hivemq.com", port: 8884, protocol: "wss" },
-    ],
   });
 }
 
-export function openRoom(options: RoomOptions): RoomTransport {
-  const topicBase = `hush/v3/${options.room}`;
-  const topicFilter = `${topicBase}/+`;
-  const client: MqttClient = createClient();
-  let closed = false;
-
-  options.onStatus("connecting");
-
-  client.on("connect", () => {
-    if (closed) return;
-    client.subscribe(topicFilter, { qos: 1 }, (error) => {
-      options.onStatus(error ? "offline" : "online");
+function publish(client: MqttClient, topic: string, payload: string, retain: boolean) {
+  return new Promise<void>((resolve, reject) => {
+    client.publish(topic, payload, { qos: 1, retain }, (error) => {
+      if (error) reject(error);
+      else resolve();
     });
   });
+}
 
-  client.on("reconnect", () => {
-    if (!closed) options.onStatus("connecting");
+export async function openRoom(options: RoomOptions): Promise<RoomTransport> {
+  const topicBase = `hush/v3/${options.room}`;
+  const topicFilter = `${topicBase}/+`;
+  const clients = BROKERS.map(createClient);
+  let closed = false;
+  let durableStatus: ConnectionStatus = "connecting";
+
+  const updateStatus = () => {
+    if (closed) return;
+    if (durableStatus === "online" || clients.some((client) => client.connected)) {
+      options.onStatus("online");
+    } else if (durableStatus === "connecting" || clients.some((client) => client.reconnecting)) {
+      options.onStatus("connecting");
+    } else {
+      options.onStatus("offline");
+    }
+  };
+
+  const durable = openDurableRoom({
+    room: options.room,
+    key: options.key,
+    senderId: options.senderId,
+    legacy: options.legacy,
+    onMessage: options.onMessage,
+    onStatus: (status) => {
+      durableStatus = status;
+      updateStatus();
+    },
   });
 
-  client.on("offline", () => {
-    if (!closed) options.onStatus("offline");
-  });
-
-  client.on("close", () => {
-    if (!closed) options.onStatus("offline");
-  });
-
-  client.on("message", async (topic, payload, packet) => {
+  const handleMessage = async (topic: string, payload: Uint8Array, retained: boolean) => {
     if (closed || !topic.startsWith(`${topicBase}/`) || payload.byteLength > MAX_ENVELOPE_BYTES) return;
     const id = topic.slice(topicBase.length + 1);
     if (!/^[a-f0-9]{32}$/.test(id)) return;
     try {
-      const envelope = JSON.parse(payload.toString("utf8")) as CipherEnvelope;
+      const envelope = JSON.parse(new TextDecoder().decode(payload)) as CipherEnvelope;
       const clear = await decryptPayload(options.key, envelope);
-      options.onMessage({ id, ...clear, historical: packet.retain });
+      const message = { id, ...clear, historical: retained };
+      options.onMessage(message);
+      if (retained) void durable.persist(message, envelope).catch(() => undefined);
     } catch {
       // Ignore malformed traffic and ciphertext from callers without this room key.
     }
-  });
+  };
+
+  for (const client of clients) {
+    client.on("connect", () => {
+      if (closed) return;
+      client.subscribe(topicFilter, { qos: 1 }, updateStatus);
+    });
+    client.on("reconnect", updateStatus);
+    client.on("offline", updateStatus);
+    client.on("close", updateStatus);
+    client.on("error", updateStatus);
+    client.on("message", (topic, payload, packet) => {
+      void handleMessage(topic, payload, packet.retain);
+    });
+  }
+
+  options.onStatus("connecting");
 
   return {
     async send(text) {
-      if (closed || !client.connected) throw new Error("Secure relay is offline");
+      if (closed) throw new Error("Secure relay is offline");
       const message: RoomMessage = {
         id: messageId(),
         senderId: options.senderId,
@@ -99,19 +125,26 @@ export function openRoom(options: RoomOptions): RoomTransport {
         createdAt: Date.now(),
       };
       const envelope = await encryptPayload(options.key, message);
-      if (closed || !client.connected) throw new Error("Secure relay is offline");
-      const topic = `${topicBase}/${message.id}`;
-      await new Promise<void>((resolve, reject) => {
-        client.publish(topic, JSON.stringify(envelope), { qos: 1, retain: true }, (error) => {
-          if (error) reject(error);
-          else resolve();
-        });
-      });
+      let durablyStored = false;
+      try {
+        await durable.persist(message, envelope);
+        durablyStored = true;
+      } catch {
+        durablyStored = false;
+      }
+
+      const connectedClients = clients.filter((client) => client.connected);
+      const results = await Promise.allSettled(connectedClients.map((client) => (
+        publish(client, `${topicBase}/${message.id}`, JSON.stringify(envelope), !durablyStored)
+      )));
+      const brokerStored = results.some((result) => result.status === "fulfilled");
+      if (!durablyStored && !brokerStored) throw new Error("Secure relay is offline");
       return message;
     },
     close() {
       closed = true;
-      client.end(true);
+      durable.close();
+      for (const client of clients) client.end(true);
     },
   };
 }

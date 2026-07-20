@@ -53,7 +53,7 @@ test("ships an installable PWA manifest and iOS profile", async () => {
 
 test("keeps plaintext crypto operations on the client", async () => {
   const [cryptoSource, apiSource, pageSource, shellSource] = await Promise.all([
-    readFile(new URL("app/lib/chat-crypto.ts", root), "utf8"),
+    readFile(new URL("shared/chat-crypto.ts", root), "utf8"),
     readFile(new URL("app/api/messages/route.ts", root), "utf8"),
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
@@ -61,8 +61,10 @@ test("keeps plaintext crypto operations on the client", async () => {
   assert.match(cryptoSource, /AES-GCM/);
   assert.match(cryptoSource, /600_000/);
   assert.match(apiSource, /cipher_text/);
+  assert.match(apiSource, /messages_v3/);
+  assert.match(apiSource, /access-control-allow-origin/);
   assert.doesNotMatch(apiSource, /plaintext|message_text|\btext\b/);
   assert.match(shellSource, /holdTimer\.current = setTimeout\(\(\) => \{/);
   assert.match(shellSource, /\}, 900\);/);
-  assert.doesNotMatch(pageSource, /text:\s*text|plaintext|messageText/);
+  assert.doesNotMatch(pageSource, /text:\s*text|plaintext|messageText|senderId:\s*row\.senderId/);
 });
