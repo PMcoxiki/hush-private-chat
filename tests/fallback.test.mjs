@@ -66,8 +66,8 @@ test("fallback retains ciphertext history across fixed independent relays", asyn
     readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
   ]);
   assert.match(app, /ChatShell/);
-  assert.match(shell, /aria-label="ChatGPT 模型选择"/);
-  assert.match(shell, /<strong>ChatGPT<\/strong>/);
+  assert.match(shell, /aria-label="Assistant 模型选择"/);
+  assert.match(shell, /<strong>Assistant<\/strong>/);
   assert.match(shell, /className="welcome-state"/);
   assert.match(shell, /className="message-actions"/);
   assert.match(shell, /placeholder="搜索对话"/);

@@ -1,7 +1,7 @@
 {
-  "name": "ChatGPT",
-  "short_name": "ChatGPT",
-  "description": "ChatGPT 移动对话助手",
+  "name": "Hush Private Chat",
+  "short_name": "Hush",
+  "description": "本地咨询与端到端加密对话",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
