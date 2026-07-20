@@ -10,6 +10,7 @@
 		100000000000000000000002 /* ChatWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000002 /* ChatWebView.swift */; };
 		100000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000004 /* Assets.xcassets */; };
 		100000000000000000000004 /* WebApp in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000006 /* WebApp */; };
+		100000000000000000000005 /* PrivateMessageNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000007 /* PrivateMessageNotificationManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +20,7 @@
 		200000000000000000000004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		200000000000000000000005 /* ChatGPT.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChatGPT.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		200000000000000000000006 /* WebApp */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WebApp; sourceTree = "<group>"; };
+		200000000000000000000007 /* PrivateMessageNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateMessageNotificationManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -33,7 +35,7 @@
 		};
 		400000000000000000000002 /* Hush */ = {
 			isa = PBXGroup;
-			children = (200000000000000000000001, 200000000000000000000002, 200000000000000000000003, 200000000000000000000004, 200000000000000000000006);
+			children = (200000000000000000000001, 200000000000000000000002, 200000000000000000000007, 200000000000000000000003, 200000000000000000000004, 200000000000000000000006);
 			path = Hush;
 			sourceTree = "<group>";
 		};
@@ -76,7 +78,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		700000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000001, 100000000000000000000002); runOnlyForDeploymentPostprocessing = 0; };
+		700000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000001, 100000000000000000000002, 100000000000000000000005); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

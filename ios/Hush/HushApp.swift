@@ -12,6 +12,10 @@ struct HushApp: App {
     @State private var privacyCoverVisible = true
     @State private var lifecycleRevision = 0
 
+    init() {
+        PrivateMessageNotificationManager.shared.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
             ZStack {

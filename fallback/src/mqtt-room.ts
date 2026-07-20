@@ -11,6 +11,7 @@ export type ConnectionStatus = "connecting" | "online" | "offline";
 
 export type RoomMessage = ClearMessage & {
   id: string;
+  historical?: boolean;
 };
 
 type RoomOptions = {
@@ -75,14 +76,14 @@ export function openRoom(options: RoomOptions): RoomTransport {
     if (!closed) options.onStatus("offline");
   });
 
-  client.on("message", async (topic, payload) => {
+  client.on("message", async (topic, payload, packet) => {
     if (closed || !topic.startsWith(`${topicBase}/`) || payload.byteLength > MAX_ENVELOPE_BYTES) return;
     const id = topic.slice(topicBase.length + 1);
     if (!/^[a-f0-9]{32}$/.test(id)) return;
     try {
       const envelope = JSON.parse(payload.toString("utf8")) as CipherEnvelope;
       const clear = await decryptPayload(options.key, envelope);
-      options.onMessage({ id, ...clear });
+      options.onMessage({ id, ...clear, historical: packet.retain });
     } catch {
       // Ignore malformed traffic and ciphertext from callers without this room key.
     }
