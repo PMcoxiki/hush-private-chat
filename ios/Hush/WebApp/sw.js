@@ -1,4 +1,4 @@
-const CACHE = "chat-shell-v4";
+const CACHE = "chat-shell-v5";
 const SHELL = [
   new URL("./", self.registration.scope).href,
   new URL("./manifest.webmanifest", self.registration.scope).href,

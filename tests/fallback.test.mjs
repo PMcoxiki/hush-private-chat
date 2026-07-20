@@ -8,6 +8,7 @@ import {
   deriveRoom,
   encryptPayload,
 } from "../fallback/src/chat-crypto.ts";
+import { openDurableRoom } from "../shared/durable-room.ts";
 import {
   COVER_HISTORY_KEY,
   COVER_MESSAGE_COUNT,
@@ -55,11 +56,12 @@ test("fallback derives stable rooms and round-trips encrypted payloads", async (
   assert.deepEqual(await decryptPayload(second.key, envelope), clear);
 });
 
-test("fallback uses retained ciphertext transport without the Sites API", async () => {
-  const [app, shell, transport, manifest, workflow] = await Promise.all([
+test("fallback uses durable ciphertext history with fixed legacy relay compatibility", async () => {
+  const [app, shell, transport, durable, manifest, workflow] = await Promise.all([
     readFile(new URL("fallback/src/App.tsx", root), "utf8"),
     readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
     readFile(new URL("fallback/src/mqtt-room.ts", root), "utf8"),
+    readFile(new URL("shared/durable-room.ts", root), "utf8"),
     readFile(new URL("public/manifest.webmanifest", root), "utf8"),
     readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
   ]);
@@ -74,12 +76,95 @@ test("fallback uses retained ciphertext transport without the Sites API", async 
   assert.match(shell, /<textarea/);
   assert.doesNotMatch(shell, /className="encryption-note"|<time>|ChatGPT 5\.2/);
   assert.match(shell, /setTimeout\(\(\) => \{/);
-  assert.doesNotMatch(`${app}${shell}`, /\/api\/messages|OpenAI|ChatGPT.*login/i);
-  assert.match(transport, /retain: true/);
+  assert.doesNotMatch(`${app}${shell}`, /OpenAI|ChatGPT.*login/i);
+  assert.match(transport, /openDurableRoom/);
+  assert.match(transport, /!durablyStored/);
   assert.match(transport, /broker\.emqx\.io/);
   assert.match(transport, /broker\.hivemq\.com/);
+  assert.doesNotMatch(transport, /servers\s*:/);
+  assert.match(durable, /hush-private-ai\.coxiki\.chatgpt\.site/);
+  assert.match(durable, /messages: batch\.map/);
+  assert.doesNotMatch(durable, /body: JSON\.stringify\([\s\S]*text:/);
   assert.equal(JSON.parse(manifest).start_url, ".");
   assert.match(workflow, /deploy-pages@v4/);
+});
+
+test("durable ciphertext history survives a fresh client session with the same key", async () => {
+  const stored = new Map();
+  const postedBodies = [];
+  const fakeFetch = async (input, init = {}) => {
+    const url = new URL(String(input), "https://relay.test");
+    const room = url.searchParams.get("room");
+    if ((init.method || "GET") === "POST") {
+      const rawBody = String(init.body || "");
+      postedBodies.push(rawBody);
+      const body = JSON.parse(rawBody);
+      const rows = stored.get(body.room) || [];
+      for (const message of body.messages) {
+        if (!rows.some((row) => row.id === message.id)) rows.push(message);
+      }
+      stored.set(body.room, rows);
+      return Response.json({ accepted: body.messages.length }, { status: 201 });
+    }
+    return Response.json({ messages: stored.get(room) || [], nextBefore: null });
+  };
+
+  const secret = "durable history diagnostic key 2026";
+  const firstDerived = await deriveRoom(secret);
+  const firstClient = openDurableRoom({
+    apiBase: "https://relay.test",
+    room: firstDerived.room,
+    key: firstDerived.key,
+    senderId: "device-a",
+    fetcher: fakeFetch,
+    pollIntervalMs: 60_000,
+    onStatus: () => undefined,
+    onMessage: () => undefined,
+  });
+  await firstClient.sync();
+  await firstClient.send("隔天仍应恢复的测试消息");
+  firstClient.close();
+
+  const recovered = [];
+  const secondDerived = await deriveRoom(secret);
+  const secondClient = openDurableRoom({
+    apiBase: "https://relay.test",
+    room: secondDerived.room,
+    key: secondDerived.key,
+    senderId: "device-b",
+    fetcher: fakeFetch,
+    pollIntervalMs: 60_000,
+    onStatus: () => undefined,
+    onMessage: (message) => recovered.push(message),
+  });
+  await secondClient.sync();
+
+  const writerDerived = await deriveRoom(secret);
+  const writer = openDurableRoom({
+    apiBase: "https://relay.test",
+    room: writerDerived.room,
+    key: writerDerived.key,
+    senderId: "device-a",
+    fetcher: fakeFetch,
+    pollIntervalMs: 60_000,
+    onStatus: () => undefined,
+    onMessage: () => undefined,
+  });
+  await writer.sync();
+  await writer.send("当前会话收到的新消息");
+  writer.close();
+  await secondClient.sync();
+  secondClient.close();
+
+  assert.equal(firstDerived.room, secondDerived.room);
+  assert.deepEqual(recovered.map((message) => message.text), [
+    "隔天仍应恢复的测试消息",
+    "当前会话收到的新消息",
+  ]);
+  assert.deepEqual(recovered.map((message) => message.historical), [true, false]);
+  assert.ok(postedBodies.every((body) => !body.includes("隔天仍应恢复的测试消息")));
+  assert.ok(postedBodies.every((body) => !body.includes("当前会话收到的新消息")));
+  assert.ok(postedBodies.every((body) => !body.includes("device-a")));
 });
 
 test("explicit session end clears the private room and creates a convincing local AI conversation", async () => {
@@ -355,9 +440,9 @@ test("native wrapper embeds the current fallback instead of loading a hosted pag
 });
 
 test("backgrounding synchronously covers private presentation while keeping an active room reachable", async () => {
-  const [shell, sitesRoom, styles, serviceWorker, nativeApp, webView, security] = await Promise.all([
+  const [shell, durableRoom, styles, serviceWorker, nativeApp, webView, security] = await Promise.all([
     readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
-    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("shared/durable-room.ts", root), "utf8"),
     readFile(new URL("shared/chat-shell.css", root), "utf8"),
     readFile(new URL("public/sw.js", root), "utf8"),
     readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),
@@ -389,10 +474,10 @@ test("backgrounding synchronously covers private presentation while keeping an a
   assert.match(shell, /settleSessionOperation\([\s\S]*activeTransport\.send\(text\)/);
   assert.match(shell, /if \(!result\.current\) return;/);
   assert.match(shell, /speechSynthesis\.cancel\(\)/);
-  assert.match(sitesRoom, /new Set<AbortController>/);
-  assert.match(sitesRoom, /controller\.abort\(\)/);
+  assert.match(durableRoom, /new Set<AbortController>/);
+  assert.match(durableRoom, /controller\.abort\(\)/);
   assert.match(styles, /html\[data-private-locked="true"\] \.privacy-shield/);
-  assert.match(serviceWorker, /chat-shell-v4/);
+  assert.match(serviceWorker, /chat-shell-v5/);
   assert.match(nativeApp, /scenePhase/);
   assert.match(nativeApp, /privacyCoverVisible = true/);
   assert.match(nativeApp, /if newPhase != \.active \{\s*privacyCoverVisible = true/);

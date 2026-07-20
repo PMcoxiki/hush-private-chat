@@ -13,12 +13,23 @@ traffic-shaping, abuse controls, or recovery flow. A production release must use
 an audited protocol implementation such as libsignal and receive an independent
 security assessment.
 
-The GitHub Pages fallback uses public MQTT relays as an availability bridge.
-Those relays receive only an opaque room identifier, random message topic, and
-AES-GCM ciphertext, but they can still observe timing, message size, IP address,
-and room activity. Retained-message durability is best-effort and public relay
-operators can delete data or stop service without notice. Do not treat this
-fallback as equivalent to Signal Protocol or use it for high-risk conversations.
+All current clients use the Sites D1 relay as the authoritative durable history.
+The v3 table receives only an opaque room identifier, random message identifier,
+AES-GCM ciphertext, and IV. Public MQTT relays remain as compatibility readers
+for legacy retained ciphertext and as a best-effort realtime bridge. Relay and
+hosting operators can still observe timing, message size, IP address, and room
+activity, and they can delete data or stop service. The same shared secret grants
+both read and write access to a room; there is no account, device revocation, or
+server-side access-control list. Do not treat this prototype as equivalent to
+Signal Protocol or use it for high-risk conversations.
+
+Legacy v2 D1 rows contain a random sender identifier and client timestamp in
+addition to ciphertext. Current clients can decrypt those rows only after the
+user supplies the shared secret, then re-encrypt the complete message envelope
+locally into v3. The plaintext is never sent during migration. Legacy MQTT
+retained envelopes are copied to D1 without decryption on the server. Public
+broker retention is still best-effort, so already-deleted legacy messages cannot
+be recovered.
 
 The concealment layer is intended only to reduce accidental disclosure during
 casual inspection. It does not resist source-code review, network-traffic
