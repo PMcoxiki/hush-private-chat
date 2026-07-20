@@ -33,3 +33,12 @@ closing, or discarding the page ends that in-memory session and requires the
 shared secret again. iOS can cover app-switcher snapshots when the scene becomes
 inactive, but it cannot prevent a user from taking a screenshot while the app is
 visible.
+
+The native wrapper can schedule a generic local notification while its embedded
+web client is still executing and receives a new peer message. The notification
+bridge carries only a random message identifier; it does not carry the room
+secret, room identifier, ciphertext, or plaintext. iOS may suspend the app and
+its MQTT connection shortly after backgrounding, so this local notification is
+not a guaranteed remote-push channel. Reliable delivery after suspension or a
+force quit requires an APNs-enabled relay, signed push entitlements, and a
+separate security review of device-token metadata and notification traffic.
