@@ -51,7 +51,7 @@ private struct PrivacyCoverView: View {
             HStack {
                 Image(systemName: "line.3.horizontal")
                 Spacer()
-                Text("ChatGPT").font(.system(size: 16, weight: .semibold))
+                Text("Hush").font(.system(size: 16, weight: .semibold))
                 Spacer()
                 Image(systemName: "square.and.pencil")
             }

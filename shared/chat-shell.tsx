@@ -697,9 +697,9 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
   return (
     <main className="app-shell">
-      <section className="phone-app" aria-label="ChatGPT 移动对话">
+      <section className="phone-app" aria-label="Assistant 移动对话">
         <div className="privacy-shield" aria-hidden="true">
-          <div className="privacy-topbar"><MenuIcon /><strong>ChatGPT</strong><ComposeIcon /></div>
+          <div className="privacy-topbar"><MenuIcon /><strong>Assistant</strong><ComposeIcon /></div>
           <div className="privacy-welcome"><KnotMark /><h1>有什么可以帮忙的？</h1></div>
           <div className="privacy-composer"><PlusIcon /><span>询问任何问题</span><WaveIcon /></div>
         </div>
@@ -715,9 +715,9 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
               if (event.key === "Enter" || event.key === " ") setShowModels(true);
             }}
             onContextMenu={(event) => event.preventDefault()}
-            aria-label="ChatGPT 模型选择"
+            aria-label="Assistant 模型选择"
           >
-            <strong>ChatGPT</strong><ChevronIcon />
+            <strong>Assistant</strong><ChevronIcon />
           </button>
           <button className="icon-button" aria-label="新对话" onClick={startNewChat}><ComposeIcon /></button>
         </header>
@@ -772,7 +772,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
               {composerHasContent ? <ArrowUpIcon /> : <WaveIcon />}
             </button>
           </form>
-          <p className="disclaimer">ChatGPT 可能会出错，请核查重要信息。</p>
+          <p className="disclaimer">Assistant 可能会出错，请核查重要信息。</p>
         </div>
 
         <span className="sr-only" aria-live="polite">{mode === "secret" ? (status === "online" ? "服务可用" : status === "connecting" ? "服务准备中" : "服务暂时离线") : ""}</span>
@@ -781,7 +781,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
         {showSidebar ? <div className="sidebar-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowSidebar(false)}>
           <aside className="sidebar" aria-label="对话侧边栏">
             <div className="sidebar-header"><button type="button" aria-label="关闭侧边栏" onClick={() => setShowSidebar(false)}><CloseIcon /></button><button type="button" aria-label="新对话" onClick={startNewChat}><ComposeIcon /></button></div>
-            <button type="button" className="sidebar-home" onClick={startNewChat}><KnotMark small /><strong>ChatGPT</strong></button>
+            <button type="button" className="sidebar-home" onClick={startNewChat}><KnotMark small /><strong>Assistant</strong></button>
             <label className="history-search"><SearchIcon /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索对话" aria-label="搜索对话" /></label>
             {roomAvailable ? <><div className="history-label">当前</div><button type="button" className={`history-item room-return${mode === "secret" ? " active" : ""}`} aria-label="返回当前房间" onClick={returnToPrivateRoom}><span aria-hidden="true">●</span>继续当前对话</button></> : null}
             <div className="history-label">最近</div>

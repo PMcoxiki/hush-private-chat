@@ -50,7 +50,7 @@ final class PrivateMessageNotificationManager: NSObject, UNUserNotificationCente
 
     private func scheduleGenericReplyNotification(id: String) {
         let content = UNMutableNotificationContent()
-        content.title = "ChatGPT"
+        content.title = "Hush"
         content.body = "你有一条新回复"
         content.sound = .default
 
