@@ -413,6 +413,39 @@ test("backgrounding synchronously covers private presentation while keeping an a
   assert.match(security, /cannot prevent a user from taking a screenshot/);
 });
 
+test("iOS notifications stay generic and never bridge private message content", async () => {
+  const [shell, webView, nativeNotifications, nativeApp, project, security] = await Promise.all([
+    readFile(new URL("shared/chat-shell.tsx", root), "utf8"),
+    readFile(new URL("ios/Hush/ChatWebView.swift", root), "utf8"),
+    readFile(new URL("ios/Hush/PrivateMessageNotificationManager.swift", root), "utf8"),
+    readFile(new URL("ios/Hush/HushApp.swift", root), "utf8"),
+    readFile(new URL("ios/Hush.xcodeproj/project.pbxproj", root), "utf8"),
+    readFile(new URL("SECURITY.md", root), "utf8"),
+  ]);
+
+  const notificationBridge = shell.slice(
+    shell.indexOf("type NativeNotificationMessage"),
+    shell.indexOf("function hidePrivacyShieldAfterPaint"),
+  );
+  assert.match(notificationBridge, /\{ type: "incoming"; id: string \}/);
+  assert.doesNotMatch(notificationBridge, /text|secret|room/);
+  assert.match(shell, /message\.senderId !== senderId/);
+  assert.match(shell, /message\.historical !== true/);
+  assert.match(shell, /message\.createdAt >= notificationStartRef\.current/);
+  assert.match(shell, /document\.visibilityState !== "visible" \|\| modeRef\.current !== "secret"/);
+  assert.match(shell, /notifyNativePrivateMessage\(\{ type: "incoming", id: message\.id \}\)/);
+  assert.match(shell, /notifyNativePrivateMessage\(\{ type: "prepare" \}\)/);
+  assert.match(webView, /privateNotifications/);
+  assert.match(webView, /notifyIncomingMessage\(id: id\)/);
+  assert.match(nativeNotifications, /import UserNotifications/);
+  assert.match(nativeNotifications, /content\.body = "你有一条新回复"/);
+  assert.match(nativeNotifications, /completionHandler\(\[\.banner, \.list, \.sound\]\)/);
+  assert.doesNotMatch(nativeNotifications, /cipherText|roomSecret|messageText/);
+  assert.match(nativeApp, /PrivateMessageNotificationManager\.shared\.configure\(\)/);
+  assert.match(project, /PrivateMessageNotificationManager\.swift in Sources/);
+  assert.match(security, /not a guaranteed remote-push channel/);
+});
+
 test("release packaging refuses an unavailable iPhone target", async () => {
   const [packageScript, iosPackageScript, targetCheck, relayCheck] = await Promise.all([
     readFile(new URL("scripts/package-release.sh", root), "utf8"),

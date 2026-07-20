@@ -30,6 +30,7 @@ const openPrivateRoom: ChatShellProps["openPrivateRoom"] = async (secret, sender
             senderId: row.senderId,
             text: await decryptMessage(derived.key, row.cipherText, row.iv),
             createdAt: row.createdAt,
+            historical: true,
           };
         } catch {
           return null;
@@ -76,7 +77,7 @@ const openPrivateRoom: ChatShellProps["openPrivateRoom"] = async (secret, sender
         if (!response.ok || !active) throw new Error("Message rejected");
         const result = (await response.json()) as { id: string; createdAt: number };
         if (!active) throw new Error("Room closed");
-        return { id: result.id, senderId, text, createdAt: result.createdAt };
+        return { id: result.id, senderId, text, createdAt: result.createdAt, historical: false };
       } finally {
         pendingRequests.delete(controller);
       }
