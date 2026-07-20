@@ -19,6 +19,22 @@ Do not claim that this prototype is an official OpenAI client. Public packages
 use an independently designed knot icon; the ChatGPT-style cover label is only
 a visual disguise and does not indicate affiliation with or access to OpenAI.
 
+## Local message notifications
+
+The native wrapper asks for notification permission after a private room is
+opened. If the embedded room connection receives a new peer message while the
+room is covered or the app is transitioning to the background, iOS presents a
+generic “你有一条新回复” notification. Message text, room secrets, and room
+identifiers are never included in the notification bridge or notification
+content.
+
+This is intentionally a local notification bridge, not APNs remote push. Once
+iOS suspends or force-quits the app, its MQTT connection cannot receive a new
+message and therefore cannot schedule a notification. Guaranteed background
+delivery requires a paid Apple Developer signing setup, Push Notifications
+entitlement, APNs credentials, and a notification relay that handles only opaque
+metadata.
+
 ## Cloud unsigned build
 
 The repository includes `.github/workflows/ios-unsigned.yml`. Push the source

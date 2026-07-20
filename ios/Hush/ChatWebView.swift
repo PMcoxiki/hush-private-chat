@@ -14,6 +14,7 @@ struct ChatWebView: UIViewRepresentable {
         configuration.allowsInlineMediaPlayback = true
         configuration.setURLSchemeHandler(context.coordinator, forURLScheme: "hush")
         configuration.userContentController.add(context.coordinator, name: "privacyReady")
+        configuration.userContentController.add(context.coordinator, name: "privateNotifications")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -36,6 +37,7 @@ struct ChatWebView: UIViewRepresentable {
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "privacyReady")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "privateNotifications")
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, WKURLSchemeHandler {
@@ -180,11 +182,28 @@ struct ChatWebView: UIViewRepresentable {
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
-            guard message.name == "privacyReady", message.body as? String == "cover-ready" else { return }
+            if message.name == "privacyReady", message.body as? String == "cover-ready" {
+                DispatchQueue.main.async {
+                    guard self.isAppActive else { return }
+                    self.readinessGeneration += 1
+                    self.onPrivacyReady()
+                }
+                return
+            }
+
+            guard message.name == "privateNotifications",
+                  let payload = message.body as? [String: Any],
+                  let type = payload["type"] as? String else { return }
             DispatchQueue.main.async {
-                guard self.isAppActive else { return }
-                self.readinessGeneration += 1
-                self.onPrivacyReady()
+                switch type {
+                case "prepare":
+                    PrivateMessageNotificationManager.shared.prepare()
+                case "incoming":
+                    guard let id = payload["id"] as? String else { return }
+                    PrivateMessageNotificationManager.shared.notifyIncomingMessage(id: id)
+                default:
+                    return
+                }
             }
         }
 

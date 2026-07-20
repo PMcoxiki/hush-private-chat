@@ -24,7 +24,13 @@ import { useCoverChat } from "./use-cover-chat";
 type Mode = "ai" | "secret";
 type Theme = "dark" | "light";
 export type ConnectionStatus = "offline" | "connecting" | "online";
-export type PrivateMessage = { id: string; senderId: string; text: string; createdAt: number };
+export type PrivateMessage = {
+  id: string;
+  senderId: string;
+  text: string;
+  createdAt: number;
+  historical?: boolean;
+};
 export type PrivateRoomSession = {
   close: () => void;
   send: (text: string) => Promise<PrivateMessage>;
@@ -102,6 +108,21 @@ function notifyNativePrivacyReady() {
     };
   };
   nativeWindow.webkit?.messageHandlers?.privacyReady?.postMessage("cover-ready");
+}
+
+type NativeNotificationMessage =
+  | { type: "prepare" }
+  | { type: "incoming"; id: string };
+
+function notifyNativePrivateMessage(message: NativeNotificationMessage) {
+  const nativeWindow = window as Window & {
+    webkit?: {
+      messageHandlers?: {
+        privateNotifications?: { postMessage: (payload: NativeNotificationMessage) => void };
+      };
+    };
+  };
+  nativeWindow.webkit?.messageHandlers?.privateNotifications?.postMessage(message);
 }
 
 function hidePrivacyShieldAfterPaint() {
@@ -194,6 +215,8 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const holdTriggered = useRef(false);
   const transportRef = useRef<PrivateRoomSession | null>(null);
   const roomSessionRef = useRef(0);
+  const notificationStartRef = useRef(0);
+  const modeRef = useRef<Mode>("ai");
   const privateExposureRef = useRef(false);
   const privateDraftRef = useRef("");
   const coverDraftRef = useRef("");
@@ -203,6 +226,10 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
     const senderTimer = window.setTimeout(() => {
@@ -318,6 +345,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
   const clearPrivateState = useCallback(() => {
     roomSessionRef.current += 1;
+    notificationStartRef.current = 0;
     privateExposureRef.current = false;
     transportRef.current?.close();
     transportRef.current = null;
@@ -421,6 +449,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     setGateBusy(true);
     setGateError("");
     const roomSession = ++roomSessionRef.current;
+    notificationStartRef.current = Date.now();
     transportRef.current?.close();
     transportRef.current = null;
     setMessages([]);
@@ -434,10 +463,19 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
         },
         onMessage: (message) => {
           if (roomSession !== roomSessionRef.current) return;
+          const isNewIncomingMessage = message.senderId !== senderId
+            && message.historical !== true
+            && message.createdAt >= notificationStartRef.current;
           setMessages((items) => mergeMessage(items, {
             ...message,
             sender: message.senderId === senderId ? "me" : "them",
           }));
+          if (
+            isNewIncomingMessage
+            && (document.visibilityState !== "visible" || modeRef.current !== "secret")
+          ) {
+            notifyNativePrivateMessage({ type: "incoming", id: message.id });
+          }
         },
       })),
       roomSession,
@@ -469,6 +507,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     setSecret("");
     setRevealSecret(false);
     setGateBusy(false);
+    notifyNativePrivateMessage({ type: "prepare" });
   };
 
   const startNewChat = () => {
