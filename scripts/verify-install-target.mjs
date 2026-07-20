@@ -34,8 +34,8 @@ if (!manifestResponse.ok) {
 }
 
 const manifest = await manifestResponse.json();
-if (manifest.name !== "ChatGPT" || manifest.display !== "standalone") {
-  throw new Error("PWA manifest is not the expected standalone ChatGPT cover");
+if (manifest.name !== "Hush Private Chat" || manifest.display !== "standalone") {
+  throw new Error("PWA manifest is not the expected standalone Hush cover");
 }
 
 console.log(JSON.stringify({

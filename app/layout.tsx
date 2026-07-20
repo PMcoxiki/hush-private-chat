@@ -29,13 +29,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "ChatGPT",
-  description: "ChatGPT 移动对话助手。",
+  title: "Hush Private Chat",
+  description: "本地咨询与端到端加密对话。",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "ChatGPT",
+    title: "Hush Private Chat",
   },
   icons: {
     icon: "/app-icon.png",

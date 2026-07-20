@@ -13,10 +13,10 @@ test("renders the ChatGPT-style mobile shell", async () => {
     readFile(new URL("shared/private-quick-replies.ts", root), "utf8"),
     readFile(new URL("shared/private-ai-replies.ts", root), "utf8"),
   ]);
-  assert.match(layout, /title: "ChatGPT"/);
+  assert.match(layout, /title: "Hush Private Chat"/);
   assert.match(shell, /询问任何问题/);
-  assert.match(shell, /aria-label="ChatGPT 模型选择"/);
-  assert.match(shell, /<strong>ChatGPT<\/strong>/);
+  assert.match(shell, /aria-label="Assistant 模型选择"/);
+  assert.match(shell, /<strong>Assistant<\/strong>/);
   assert.doesNotMatch(shell, /ChatGPT 5\.2|<span>5\.2<\/span>/);
   assert.match(shell, /有什么可以帮忙的？/);
   assert.match(shell, /className="message-actions"/);
@@ -46,7 +46,7 @@ test("ships an installable PWA manifest and iOS profile", async () => {
   ]);
   const parsed = JSON.parse(manifest);
   assert.equal(parsed.display, "standalone");
-  assert.equal(parsed.name, "ChatGPT");
+  assert.equal(parsed.name, "Hush Private Chat");
   assert.match(route, /application\/x-apple-aspen-config/);
   assert.match(route, /com\.apple\.webClip\.managed/);
 });
