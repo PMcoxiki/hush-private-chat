@@ -79,6 +79,8 @@ test("fallback retains ciphertext history across fixed independent relays", asyn
   assert.doesNotMatch(`${app}${shell}`, /OpenAI|ChatGPT.*login/i);
   assert.match(transport, /openDurableRoom/);
   assert.match(transport, /MQTT_RETAIN_HISTORY = true/);
+  assert.match(transport, /function publishWhenConnected/);
+  assert.match(transport, /client\.once\("connect", attempt\)/);
   assert.match(transport, /Promise\.any\(\[durableAttempt, brokerAttempt\]\)/);
   assert.doesNotMatch(transport, /!durablyStored/);
   assert.match(transport, /broker\.emqx\.io/);
