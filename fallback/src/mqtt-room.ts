@@ -55,6 +55,30 @@ function publish(client: MqttClient, topic: string, payload: string, retain: boo
   });
 }
 
+function publishWhenConnected(client: MqttClient, topic: string, payload: string, retain: boolean) {
+  return new Promise<void>((resolve, reject) => {
+    if (client.connected) {
+      void publish(client, topic, payload, retain).then(resolve, reject);
+      return;
+    }
+
+    const timer = globalThis.setTimeout(() => {
+      cleanup();
+      reject(new Error("MQTT relay connection timed out"));
+    }, 12_000);
+    function cleanup() {
+      globalThis.clearTimeout(timer);
+      client.off("connect", attempt);
+    }
+    function attempt() {
+      cleanup();
+      void publish(client, topic, payload, retain).then(resolve, reject);
+    }
+
+    client.once("connect", attempt);
+  });
+}
+
 export async function openRoom(options: RoomOptions): Promise<RoomTransport> {
   const topicBase = `hush/v3/${options.room}`;
   const topicFilter = `${topicBase}/+`;
@@ -126,18 +150,15 @@ export async function openRoom(options: RoomOptions): Promise<RoomTransport> {
         createdAt: Date.now(),
       };
       const envelope = await encryptPayload(options.key, message);
-      const connectedClients = clients.filter((client) => client.connected);
       const durableAttempt = durable.persist(message, envelope);
-      const brokerAttempt = connectedClients.length > 0
-        ? Promise.any(connectedClients.map((client) => (
-            publish(
-              client,
-              `${topicBase}/${message.id}`,
-              JSON.stringify(envelope),
-              MQTT_RETAIN_HISTORY,
-            )
-          )))
-        : Promise.reject(new Error("No MQTT relay is connected"));
+      const brokerAttempt = Promise.any(clients.map((client) => (
+        publishWhenConnected(
+          client,
+          `${topicBase}/${message.id}`,
+          JSON.stringify(envelope),
+          MQTT_RETAIN_HISTORY,
+        )
+      )));
 
       try {
         await Promise.any([durableAttempt, brokerAttempt]);
