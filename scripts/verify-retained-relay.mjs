@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import mqtt from "mqtt";
-import { decryptPayload, deriveRoom, encryptPayload } from "../fallback/src/chat-crypto.ts";
+import {
+  decryptPayload,
+  deriveRoom,
+  encryptPayload,
+  generateSharedSecret,
+  SHARED_CODE_LENGTH,
+} from "../fallback/src/chat-crypto.ts";
 
 const brokers = [
   "wss://broker.emqx.io:8084/mqtt",
@@ -55,7 +61,8 @@ function close(client) {
 }
 
 async function verifyBroker(broker) {
-  const secret = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+  const secret = generateSharedSecret();
+  assert.equal(secret.length, SHARED_CODE_LENGTH);
   const publisherRoom = await deriveRoom(secret);
   const receiverRoom = await deriveRoom(secret);
   assert.equal(publisherRoom.room, receiverRoom.room);
