@@ -13,6 +13,13 @@ traffic-shaping, abuse controls, or recovery flow. A production release must use
 an audited protocol implementation such as libsignal and receive an independent
 security assessment.
 
+The convenience room code is six characters drawn from a 32-character alphabet
+(30 bits of entropy). PBKDF2 slows guessing but does not make that code suitable
+for high-risk communications: anyone who obtains retained ciphertext can try
+candidate codes offline. Randomly generate the code, send it over a separate
+trusted channel, and use a longer legacy passphrase when stronger resistance to
+guessing matters.
+
 Sites clients use the D1 relay as their durable history. The static PWA and
 embedded iOS client also retain the same AES-GCM envelopes under per-message
 topics on two fixed public MQTT relays. This redundant path is necessary because

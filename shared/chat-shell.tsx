@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { shouldSubmitComposerKey } from "./composer-ime";
+import { normalizeSharedSecret, SHARED_CODE_LENGTH } from "./chat-crypto";
 import { groupPrivateMessages, type CoverModel } from "./cover-chat";
 import { generatePrivateAiReply } from "./private-ai-replies";
 import { mergePrivateQuickReply, PRIVATE_QUICK_REPLIES } from "./private-quick-replies";
@@ -440,9 +441,9 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
   const unlock = async (event: FormEvent) => {
     event.preventDefault();
-    const normalized = secret.trim();
-    if (normalized.length < 16) {
-      setGateError("访问令牌至少需要 16 个字符");
+    const normalized = normalizeSharedSecret(secret);
+    if (normalized.length < SHARED_CODE_LENGTH) {
+      setGateError("访问码至少需要 6 个字符");
       return;
     }
     privateExposureRef.current = true;
@@ -575,7 +576,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
     if (!secret) return;
     try {
       await navigator.clipboard.writeText(secret);
-      setNotice("访问令牌已复制");
+      setNotice("访问码已复制");
     } catch {
       setGateError("无法自动复制，请长按复制");
     }
@@ -805,7 +806,7 @@ export function ChatShell({ createSharedSecret, openPrivateRoom }: ChatShellProp
 
         {showSettings ? <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowSettings(false)}><section className="option-sheet settings-sheet"><div className="sheet-handle" /><h2>设置与帮助</h2><div className="settings-row"><span>回答模式</span><strong>{MODEL_OPTIONS.find((option) => option.id === cover.selectedModel)?.label}</strong></div><div className="settings-row"><span>外观</span><div className="theme-options" role="group" aria-label="外观模式"><button type="button" aria-pressed={theme === "dark"} onClick={() => selectTheme("dark")}>深色</button><button type="button" aria-pressed={theme === "light"} onClick={() => selectTheme("light")}>浅色</button></div></div><div className="settings-row"><span>对话存储</span><strong>仅限本机</strong></div><p>普通咨询记录最多保留 12 条。回答由本地规则生成，断网也能使用。</p>{roomAvailable ? <button type="button" className="sheet-danger" onClick={() => { setShowSettings(false); activateCover(); }}>结束当前会话</button> : null}<button type="button" className="sheet-done" onClick={() => { setShowSettings(false); setShowSidebar(false); }}>完成</button></section></div> : null}
 
-        {showGate ? <div className="gate-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !gateBusy && clearPrivateState()}><form className="gate" onSubmit={unlock}><div className="sheet-handle" /><div className="lock-mark" aria-hidden="true">⌁</div><h2>模型诊断</h2><p>输入诊断访问令牌</p><div className="secret-field"><input autoFocus type={revealSecret ? "text" : "password"} value={secret} onChange={(event) => { privateExposureRef.current = true; setSecret(event.target.value); }} placeholder="访问令牌" autoComplete="off" spellCheck={false} /><button type="button" onClick={() => setRevealSecret((value) => !value)}>{revealSecret ? "隐藏" : "显示"}</button></div><div className="token-actions"><button type="button" onClick={makeSecret}>生成访问令牌</button><button type="button" onClick={copySecret} disabled={!secret}>复制</button></div>{gateError ? <div className="gate-error">{gateError}</div> : null}<button type="submit" disabled={gateBusy}>{gateBusy ? "正在诊断…" : "开始诊断"}</button><button type="button" className="cancel" onClick={clearPrivateState} disabled={gateBusy}>取消</button></form></div> : null}
+        {showGate ? <div className="gate-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !gateBusy && clearPrivateState()}><form className="gate" onSubmit={unlock}><div className="sheet-handle" /><div className="lock-mark" aria-hidden="true">⌁</div><h2>模型诊断</h2><p>输入 6 位诊断访问码</p><div className="secret-field"><input autoFocus type={revealSecret ? "text" : "password"} value={secret} onChange={(event) => { privateExposureRef.current = true; setSecret(event.target.value); }} placeholder="6 位访问码" autoComplete="off" spellCheck={false} /><button type="button" onClick={() => setRevealSecret((value) => !value)}>{revealSecret ? "隐藏" : "显示"}</button></div><div className="token-actions"><button type="button" onClick={makeSecret}>生成 6 位访问码</button><button type="button" onClick={copySecret} disabled={!secret}>复制</button></div>{gateError ? <div className="gate-error">{gateError}</div> : null}<button type="submit" disabled={gateBusy}>{gateBusy ? "正在诊断…" : "开始诊断"}</button><button type="button" className="cancel" onClick={clearPrivateState} disabled={gateBusy}>取消</button></form></div> : null}
       </section>
     </main>
   );
