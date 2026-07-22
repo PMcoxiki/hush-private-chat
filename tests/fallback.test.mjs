@@ -7,6 +7,9 @@ import {
   decryptPayload,
   deriveRoom,
   encryptPayload,
+  generateSharedSecret,
+  normalizeSharedSecret,
+  SHARED_CODE_LENGTH,
 } from "../fallback/src/chat-crypto.ts";
 import { openDurableRoom } from "../shared/durable-room.ts";
 import {
@@ -54,6 +57,18 @@ test("fallback derives stable rooms and round-trips encrypted payloads", async (
   const envelope = await encryptPayload(first.key, clear);
   assert.doesNotMatch(JSON.stringify(envelope), /private fallback message|device-test/);
   assert.deepEqual(await decryptPayload(second.key, envelope), clear);
+});
+
+test("six-character room codes are generated without ambiguous characters and ignore case", async () => {
+  const code = generateSharedSecret();
+  assert.equal(code.length, SHARED_CODE_LENGTH);
+  assert.match(code, /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/);
+  assert.equal(normalizeSharedSecret(code.toLowerCase()), code);
+
+  const upper = await deriveRoom(normalizeSharedSecret(code));
+  const lower = await deriveRoom(normalizeSharedSecret(code.toLowerCase()));
+  assert.equal(upper.room, lower.room);
+  assert.equal(normalizeSharedSecret(" Legacy-Key-With-Case "), "Legacy-Key-With-Case");
 });
 
 test("fallback retains ciphertext history across fixed independent relays", async () => {

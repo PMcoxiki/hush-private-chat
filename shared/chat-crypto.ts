@@ -1,5 +1,9 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const SHARED_CODE_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const SHARED_CODE_PATTERN = /^[a-z0-9]+$/i;
+
+export const SHARED_CODE_LENGTH = 6;
 
 export type ClearMessage = {
   senderId: string;
@@ -114,10 +118,14 @@ export async function legacyMessageId(id: string) {
   return bytesToHex(new Uint8Array(digest)).slice(0, 32);
 }
 
+export function normalizeSharedSecret(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length === SHARED_CODE_LENGTH && SHARED_CODE_PATTERN.test(trimmed)
+    ? trimmed.toUpperCase()
+    : trimmed;
+}
+
 export function generateSharedSecret() {
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  return bytesToBase64(bytes)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
+  const bytes = crypto.getRandomValues(new Uint8Array(SHARED_CODE_LENGTH));
+  return Array.from(bytes, (byte) => SHARED_CODE_CHARACTERS[byte & 31]).join("");
 }
